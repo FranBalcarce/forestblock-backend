@@ -1,41 +1,76 @@
+const axios = require("axios");
+
+const CARBONMARK_API = "https://api.carbonmark.com";
+
+if (!process.env.CARBONMARK_API_KEY) {
+  throw new Error("CARBONMARK_API_KEY is not defined");
+}
+
+const headers = {
+  Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
+};
+
+// ============================
+// GET PRICES
+// ============================
 exports.getPrices = async (req, res) => {
   try {
-    const { projectIds } = req.query;
-
     const response = await axios.get(`${CARBONMARK_API}/prices`, {
       headers,
-      params: {
-        projectIds,
-        // minSupply: 1, // ⛔ lo sacamos para no filtrar de más
-      },
     });
 
-    // Filtrado liviano (más tolerante)
-    const validListings = response.data.filter(
-      (p) =>
-        p.type === "listing" &&
-        p.purchasePrice != null &&
-        p.listing?.creditId?.projectId,
-    );
-
-    // 🔑 NORMALIZACIÓN PARA EL FRONTEND
-    const normalizedProjects = validListings.map((item) => ({
-      projectId: item.listing.creditId.projectId,
-      vintage: item.listing.creditId.vintage,
-      price: item.purchasePrice,
-      supply: item.supply ?? 0,
-      listingId: item.listing.id,
-      tokenId: item.token?.id ?? null,
-    }));
+    const normalizedProjects = response.data
+      .filter(
+        (p) =>
+          p.type === "listing" &&
+          p.purchasePrice != null &&
+          p.listing?.creditId?.projectId,
+      )
+      .map((item) => ({
+        projectId: item.listing.creditId.projectId,
+        vintage: item.listing.creditId.vintage,
+        price: item.purchasePrice,
+        supply: item.supply ?? 0,
+        listingId: item.listing.id,
+      }));
 
     res.status(200).json(normalizedProjects);
   } catch (error) {
-    console.error(
-      "Error fetching prices:",
-      error.response?.data || error.message,
-    );
+    console.error("Error fetching prices:", error.message);
     res.status(500).json({ error: "Failed to fetch prices" });
   }
+};
+
+// ============================
+// REQUIRED HANDLERS (STUBS)
+// ============================
+
+exports.getCarbonProjects = async (req, res) => {
+  res.status(200).json([]);
+};
+
+exports.getCarbonProjectById = async (req, res) => {
+  res.status(200).json({});
+};
+
+exports.generateQuote = async (req, res) => {
+  res.status(200).json({ ok: true });
+};
+
+exports.createOrder = async (req, res) => {
+  res.status(200).json({ ok: true });
+};
+
+exports.getOrderDetails = async (req, res) => {
+  res.status(200).json({});
+};
+
+exports.pollOrderStatus = async (req, res) => {
+  res.status(200).json({ status: "PENDING" });
+};
+
+exports.sharePdf = async (req, res) => {
+  res.status(200).json({ ok: true });
 };
 
 // const qs = require("qs");
