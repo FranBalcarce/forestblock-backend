@@ -8,7 +8,7 @@ const {
   getCarbonProjectById,
   getPrices,
   pollOrderStatus,
-} = require("./carbonController.js");
+} = require("./carbonController");
 
 const router = express.Router();
 

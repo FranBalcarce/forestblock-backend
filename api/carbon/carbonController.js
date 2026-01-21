@@ -1,23 +1,30 @@
-import axios from "axios";
+const axios = require("axios");
 
 const CARBONMARK_API = "https://v18.api.carbonmark.com";
+
+if (!process.env.CARBONMARK_API_KEY) {
+  throw new Error("CARBONMARK_API_KEY is not defined");
+}
+
 const headers = {
   Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
 };
 
-export const getPrices = async (req, res) => {
+// ============================
+// GET PRICES
+// ============================
+exports.getPrices = async (req, res) => {
   try {
     const { projectIds } = req.query;
 
     const response = await axios.get(`${CARBONMARK_API}/prices`, {
       headers,
       params: {
-        projectIds, // opcional
-        minSupply: 1, // 🔴 CLAVE
+        projectIds,
+        minSupply: 1,
       },
     });
 
-    // Solo listings válidos
     const validListings = response.data.filter(
       (p) =>
         p.type === "listing" &&
@@ -34,6 +41,39 @@ export const getPrices = async (req, res) => {
     );
     res.status(500).json({ error: "Failed to fetch prices" });
   }
+};
+
+// ============================
+// STUBS / PLACEHOLDERS
+// (para que Express NO crashee)
+// ============================
+
+exports.getCarbonProjects = async (req, res) => {
+  res.status(200).json([]);
+};
+
+exports.getCarbonProjectById = async (req, res) => {
+  res.status(200).json({});
+};
+
+exports.generateQuote = async (req, res) => {
+  res.status(200).json({ ok: true });
+};
+
+exports.createOrder = async (req, res) => {
+  res.status(200).json({ ok: true });
+};
+
+exports.getOrderDetails = async (req, res) => {
+  res.status(200).json({});
+};
+
+exports.pollOrderStatus = async (req, res) => {
+  res.status(200).json({ status: "PENDING" });
+};
+
+exports.sharePdf = async (req, res) => {
+  res.status(200).json({ ok: true });
 };
 
 // const qs = require("qs");
