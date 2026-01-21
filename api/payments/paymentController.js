@@ -1,11 +1,17 @@
 const PaymentModel = require("./paymentModel");
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
-
-module.exports = stripe;
-
 const { ethers } = require("ethers");
 const { monitorSingleWallet } = require("./paymentServices");
 
+// 🔐 Validación temprana de Stripe
+if (!process.env.STRIPE_SECRET_KEY) {
+  throw new Error("STRIPE_SECRET_KEY is not defined");
+}
+
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+
+// ============================
+// GENERATE PAYMENT
+// ============================
 exports.generatePayment = async (req, res) => {
   try {
     const { amount, tonnesToRetire, metadata, userId, type, formData } =
@@ -20,7 +26,7 @@ exports.generatePayment = async (req, res) => {
     }
 
     switch (type) {
-      case "usdt":
+      case "usdt": {
         const newWallet = ethers.Wallet.createRandom();
         const walletAddress = newWallet.address;
         const privateKey = newWallet.privateKey;
@@ -42,7 +48,7 @@ exports.generatePayment = async (req, res) => {
 
         const qrPayload = `ethereum:${walletAddress}?value=${amount}&chainId=137`;
 
-        res.status(200).json({
+        return res.status(200).json({
           paymentData: {
             paymentId: newPayment._id,
             address: walletAddress,
@@ -52,8 +58,9 @@ exports.generatePayment = async (req, res) => {
           },
           qrPayload,
         });
-        break;
-      case "stripe":
+      }
+
+      case "stripe": {
         const newStripePayment = await PaymentModel.create({
           userId,
           amount,
@@ -61,21 +68,23 @@ exports.generatePayment = async (req, res) => {
           status: "PENDING",
           metadata: metadata || {},
           type,
-          beneficiary_name: formData.beneficiary,
-          retirement_message: formData.message,
+          beneficiary_name: formData?.beneficiary,
+          retirement_message: formData?.message,
         });
 
-        res.status(200).json({
+        return res.status(200).json({
           paymentData: {
             paymentId: newStripePayment._id,
             amount,
             type,
           },
         });
-        break;
+      }
+
       default:
-        console.log("No especificaste el tipo de payment (stripe, usdt, etc)");
-        return;
+        return res
+          .status(400)
+          .json({ message: "Invalid payment type (stripe, usdt)" });
     }
   } catch (error) {
     console.error("Error generating payment:", error);
@@ -83,6 +92,9 @@ exports.generatePayment = async (req, res) => {
   }
 };
 
+// ============================
+// CHECK PAYMENT STATUS
+// ============================
 exports.checkPaymentStatus = async (req, res) => {
   try {
     const { paymentId } = req.query;
@@ -97,15 +109,19 @@ exports.checkPaymentStatus = async (req, res) => {
       return res.status(404).json({ message: "Payment not found." });
     }
 
-    res
-      .status(200)
-      .json({ status: payment.status, amountReceived: payment.amountReceived });
+    res.status(200).json({
+      status: payment.status,
+      amountReceived: payment.amountReceived,
+    });
   } catch (error) {
     console.error("Error checking payment status:", error);
     res.status(500).json({ message: "Internal server error." });
   }
 };
 
+// ============================
+// GET PAYMENT DETAILS
+// ============================
 exports.getPaymentDetails = async (req, res) => {
   try {
     const { paymentId } = req.params;
@@ -144,6 +160,9 @@ exports.getPaymentDetails = async (req, res) => {
   }
 };
 
+// ============================
+// STRIPE CHECKOUT SESSION
+// ============================
 exports.createCheckoutSession = async (req, res) => {
   try {
     const { pricePerUnit, quantity, paymentId, name } = req.body;
@@ -153,6 +172,7 @@ exports.createCheckoutSession = async (req, res) => {
     if (!Number.isInteger(unitAmountInCents) || unitAmountInCents <= 0) {
       return res.status(400).json({ message: "Invalid pricePerUnit" });
     }
+
     if (!quantity || !Number.isInteger(quantity) || quantity <= 0) {
       return res.status(400).json({ message: "Invalid quantity" });
     }
@@ -188,6 +208,9 @@ exports.createCheckoutSession = async (req, res) => {
   }
 };
 
+// ============================
+// CHANGE PAYMENT STATUS
+// ============================
 exports.changePaymentStatus = async (req, res) => {
   try {
     const { paymentId, stripeSessionId, status } = req.body;
@@ -204,7 +227,7 @@ exports.changePaymentStatus = async (req, res) => {
           stripeSessionId,
         },
       },
-      { new: true, useFindAndModify: false },
+      { new: true },
     );
 
     if (!updatedPayment) {
@@ -213,6 +236,7 @@ exports.changePaymentStatus = async (req, res) => {
 
     res.status(200).json({ status: updatedPayment.status });
   } catch (error) {
-    console.log(error);
+    console.error("Error changing payment status:", error);
+    res.status(500).json({ message: "Internal server error." });
   }
 };
