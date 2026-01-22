@@ -1,30 +1,31 @@
 const axios = require("axios");
 
-const CARBONMARK_API = "https://v18.api.carbonmark.com";
+/**
+ * Base de la API de Verra
+ * (esto es lo que ya estás usando y funciona)
+ */
+const VERRA_BASE_URL = "https://registry.verra.org/api";
 
-if (!process.env.CARBONMARK_API_KEY) {
-  throw new Error("CARBONMARK_API_KEY is not defined");
-}
-
-const headers = {
-  Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
-};
-
-/* =========================
-   GET CARBON PROJECTS
-========================= */
-exports.getCarbonProjects = async (req, res) => {
+/**
+ * ===============================
+ * GET /api/carbon/carbonProjects
+ * ===============================
+ */
+const getCarbonProjects = async (req, res) => {
   try {
-    const response = await axios.get(`${CARBONMARK_API}/carbonProjects`, {
-      headers,
-    });
+    const response = await axios.get(`${VERRA_BASE_URL}/projects`);
 
-    res.status(200).json(response.data);
+    /**
+     * Normalizamos SIEMPRE a { items: [] }
+     * para que el frontend no falle
+     */
+    const items = Array.isArray(response.data)
+      ? response.data
+      : response.data?.items || [];
+
+    res.status(200).json({ items });
   } catch (error) {
-    console.error(
-      "CARBONMARK PROJECTS ERROR:",
-      error.response?.data || error.message,
-    );
+    console.error("❌ Error fetching carbon projects:", error.message);
 
     res.status(500).json({
       error: "Failed to fetch carbon projects",
@@ -33,28 +34,30 @@ exports.getCarbonProjects = async (req, res) => {
   }
 };
 
-/* =========================
-   GET PRICES
-========================= */
-exports.getPrices = async (req, res) => {
+/**
+ * ===============================
+ * GET /api/carbon/prices
+ * (por ahora mock / placeholder)
+ * ===============================
+ */
+const getPrices = async (req, res) => {
   try {
-    const response = await axios.get(`${CARBONMARK_API}/prices`, {
-      headers,
-      params: { minSupply: 1 },
-    });
-
-    res.status(200).json(response.data);
+    /**
+     * ⚠️ Todavía no tenés prices reales
+     * Devolvemos un array vacío para no romper el frontend
+     */
+    res.status(200).json({ items: [] });
   } catch (error) {
-    console.error(
-      "CARBONMARK PRICES ERROR:",
-      error.response?.data || error.message,
-    );
-
+    console.error("❌ Error fetching prices:", error.message);
     res.status(500).json({
       error: "Failed to fetch prices",
-      details: error.response?.data || error.message,
     });
   }
+};
+
+module.exports = {
+  getCarbonProjects,
+  getPrices,
 };
 
 // const qs = require("qs");
