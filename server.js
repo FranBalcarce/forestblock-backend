@@ -16,6 +16,8 @@ const app = express();
  */
 app.set("trust proxy", 1);
 
+/* ================= DB ================= */
+
 connectDB();
 
 /* ================= MIDDLEWARES ================= */
@@ -46,11 +48,38 @@ app.use(limiter);
 
 app.use("/api", apiRoutes);
 
-/* ================= START SERVER ================= */
+/* ================= HEALTH CHECK ================= */
 
 app.get("/", (req, res) => {
-  res.status(200).json({ status: "ok", service: "forestblock-api" });
+  res.status(200).json({
+    status: "ok",
+    service: "forestblock-api",
+    env: process.env.NODE_ENV || "development",
+  });
 });
 
+/* ================= API 404 ================= */
+
+app.use("/api", (req, res) => {
+  res.status(404).json({
+    error: "API route not found",
+    path: req.originalUrl,
+  });
+});
+
+/* ================= GLOBAL ERROR HANDLER ================= */
+
+app.use((err, req, res, next) => {
+  console.error("🔥 GLOBAL ERROR:", err);
+
+  res.status(err.status || 500).json({
+    error: err.message || "Internal server error",
+  });
+});
+
+/* ================= START SERVER ================= */
+
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Servidor corriendo en el puerto ${PORT}`));
+app.listen(PORT, () =>
+  console.log(`✅ Servidor corriendo en el puerto ${PORT}`),
+);

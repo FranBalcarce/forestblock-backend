@@ -1,6 +1,6 @@
 const axios = require("axios");
 
-const CARBONMARK_API = "https://api.carbonmark.com";
+const CARBONMARK_API = "https://v18.api.carbonmark.com";
 
 if (!process.env.CARBONMARK_API_KEY) {
   throw new Error("CARBONMARK_API_KEY is not defined");
@@ -15,7 +15,9 @@ const headers = {
 ========================= */
 exports.getCarbonProjects = async (req, res) => {
   try {
-    const response = await axios.get(`${CARBONMARK_API}/projects`, { headers });
+    const response = await axios.get(`${CARBONMARK_API}/carbonProjects`, {
+      headers,
+    });
 
     res.status(200).json(response.data);
   } catch (error) {
