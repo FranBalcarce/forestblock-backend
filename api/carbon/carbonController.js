@@ -15,170 +15,43 @@ const headers = {
 ========================= */
 exports.getCarbonProjects = async (req, res) => {
   try {
-    const response = await axios.get(
-      "https://api.carbonmark.com/v18/projects",
-      { headers },
-    );
+    const response = await axios.get(`${CARBONMARK_API}/projects`, { headers });
 
     res.status(200).json(response.data);
   } catch (error) {
-    console.error("CARBONMARK ERROR STATUS:", error.response?.status);
-    console.error("CARBONMARK ERROR DATA:", error.response?.data);
-    console.error("CARBONMARK ERROR MSG:", error.message);
+    console.error(
+      "CARBONMARK PROJECTS ERROR:",
+      error.response?.data || error.message,
+    );
 
     res.status(500).json({
       error: "Failed to fetch carbon projects",
-      status: error.response?.status,
       details: error.response?.data || error.message,
     });
   }
 };
 
 /* =========================
-   GET PROJECT BY ID
-========================= */
-exports.getCarbonProjectById = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const response = await axios.get(`${CARBONMARK_API}/projects/${id}`, {
-      headers,
-    });
-
-    res.status(200).json(response.data);
-  } catch (error) {
-    console.error(
-      "Error fetching carbon project:",
-      error.response?.data || error.message,
-    );
-    res.status(500).json({ error: "Failed to fetch carbon project" });
-  }
-};
-
-/* =========================
-   GET PRICES (LISTINGS)
+   GET PRICES
 ========================= */
 exports.getPrices = async (req, res) => {
   try {
-    const { projectIds } = req.query;
-
     const response = await axios.get(`${CARBONMARK_API}/prices`, {
       headers,
-      params: {
-        projectIds,
-        minSupply: 1,
-      },
-    });
-
-    const validListings = response.data.filter(
-      (p) =>
-        p.type === "listing" &&
-        typeof p.purchasePrice === "number" &&
-        p.supply > 0 &&
-        p.listing?.creditId?.projectId,
-    );
-
-    res.status(200).json(validListings);
-  } catch (error) {
-    console.error(
-      "Error fetching prices:",
-      error.response?.data || error.message,
-    );
-    res.status(500).json({ error: "Failed to fetch prices" });
-  }
-};
-
-/* =========================
-   GENERATE QUOTE
-========================= */
-exports.generateQuote = async (req, res) => {
-  try {
-    const response = await axios.post(`${CARBONMARK_API}/quotes`, req.body, {
-      headers,
+      params: { minSupply: 1 },
     });
 
     res.status(200).json(response.data);
   } catch (error) {
     console.error(
-      "Error generating quote:",
+      "CARBONMARK PRICES ERROR:",
       error.response?.data || error.message,
     );
-    res.status(500).json({ error: "Failed to generate quote" });
-  }
-};
 
-/* =========================
-   CREATE ORDER
-========================= */
-exports.createOrder = async (req, res) => {
-  try {
-    const response = await axios.post(`${CARBONMARK_API}/orders`, req.body, {
-      headers,
+    res.status(500).json({
+      error: "Failed to fetch prices",
+      details: error.response?.data || error.message,
     });
-
-    res.status(200).json(response.data);
-  } catch (error) {
-    console.error(
-      "Error creating order:",
-      error.response?.data || error.message,
-    );
-    res.status(500).json({ error: "Failed to create order" });
-  }
-};
-
-/* =========================
-   GET ORDER DETAILS
-========================= */
-exports.getOrderDetails = async (req, res) => {
-  try {
-    const { orderId } = req.params;
-
-    const response = await axios.get(`${CARBONMARK_API}/orders/${orderId}`, {
-      headers,
-    });
-
-    res.status(200).json(response.data);
-  } catch (error) {
-    console.error(
-      "Error fetching order:",
-      error.response?.data || error.message,
-    );
-    res.status(500).json({ error: "Failed to fetch order" });
-  }
-};
-
-/* =========================
-   POLL ORDER STATUS
-========================= */
-exports.pollOrderStatus = async (req, res) => {
-  try {
-    const response = await axios.get(`${CARBONMARK_API}/orders`, { headers });
-
-    res.status(200).json(response.data);
-  } catch (error) {
-    console.error(
-      "Error polling orders:",
-      error.response?.data || error.message,
-    );
-    res.status(500).json({ error: "Failed to poll orders" });
-  }
-};
-
-/* =========================
-   SHARE PDF
-========================= */
-exports.sharePdf = async (req, res) => {
-  try {
-    const response = await axios.post(
-      `${CARBONMARK_API}/orders/share`,
-      req.body,
-      { headers },
-    );
-
-    res.status(200).json(response.data);
-  } catch (error) {
-    console.error("Error sharing PDF:", error.response?.data || error.message);
-    res.status(500).json({ error: "Failed to share PDF" });
   }
 };
 
