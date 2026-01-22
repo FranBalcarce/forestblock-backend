@@ -1,63 +1,96 @@
 const axios = require("axios");
 
-/**
- * Base de la API de Verra
- * (esto es lo que ya estás usando y funciona)
- */
-const VERRA_BASE_URL = "https://registry.verra.org/api";
+const CARBONMARK_API = "https://v18.api.carbonmark.com";
 
-/**
- * ===============================
- * GET /api/carbon/carbonProjects
- * ===============================
- */
-const getCarbonProjects = async (req, res) => {
+if (!process.env.CARBONMARK_API_KEY) {
+  throw new Error("CARBONMARK_API_KEY is not defined");
+}
+
+const headers = {
+  Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
+};
+
+// ============================
+// GET PROJECTS WITH STOCK
+// ============================
+exports.getCarbonProjects = async (req, res) => {
   try {
-    const response = await axios.get(`${VERRA_BASE_URL}/projects`);
-
-    /**
-     * Normalizamos SIEMPRE a { items: [] }
-     * para que el frontend no falle
-     */
-    const items = Array.isArray(response.data)
-      ? response.data
-      : response.data?.items || [];
-
-    res.status(200).json({ items });
-  } catch (error) {
-    console.error("❌ Error fetching carbon projects:", error.message);
-
-    res.status(500).json({
-      error: "Failed to fetch carbon projects",
-      details: error.response?.data || error.message,
+    // 1️⃣ Traer todos los proyectos
+    const projectsRes = await axios.get(`${CARBONMARK_API}/projects`, {
+      headers,
     });
+
+    const projects = projectsRes.data?.items ?? [];
+
+    // 2️⃣ Construir IDs tipo VCS-191
+    const projectIds = projects
+      .map((p) => {
+        const standard = p.standards?.[0]?.key;
+        if (!standard || !p.projectID) return null;
+        return `${standard}-${p.projectID}`;
+      })
+      .filter(Boolean);
+
+    if (!projectIds.length) {
+      return res.status(200).json({ items: [] });
+    }
+
+    // 3️⃣ Traer precios SOLO de esos proyectos
+    const pricesRes = await axios.get(`${CARBONMARK_API}/prices`, {
+      headers,
+      params: {
+        projectIds: projectIds.join(","),
+        minSupply: 1,
+      },
+    });
+
+    const prices = pricesRes.data ?? [];
+
+    // 4️⃣ Proyectos que tienen listings
+    const projectsWithStock = new Set(
+      prices
+        .filter((p) => p.type === "listing")
+        .map((p) => p.listing?.creditId?.projectId)
+        .filter(Boolean),
+    );
+
+    // 5️⃣ Filtrar proyectos
+    const marketProjects = projects.filter((p) => {
+      const standard = p.standards?.[0]?.key;
+      if (!standard) return false;
+      return projectsWithStock.has(`${standard}-${p.projectID}`);
+    });
+
+    res.status(200).json({ items: marketProjects });
+  } catch (error) {
+    console.error(
+      "Error fetching carbon projects:",
+      error.response?.data || error.message,
+    );
+    res.status(500).json({ error: "Failed to fetch carbon projects" });
   }
 };
 
-/**
- * ===============================
- * GET /api/carbon/prices
- * (por ahora mock / placeholder)
- * ===============================
- */
-const getPrices = async (req, res) => {
+// ============================
+// GET PRICES (DETAIL)
+// ============================
+exports.getPrices = async (req, res) => {
   try {
-    /**
-     * ⚠️ Todavía no tenés prices reales
-     * Devolvemos un array vacío para no romper el frontend
-     */
-    res.status(200).json({ items: [] });
-  } catch (error) {
-    console.error("❌ Error fetching prices:", error.message);
-    res.status(500).json({
-      error: "Failed to fetch prices",
-    });
-  }
-};
+    const { projectIds, minSupply = 1 } = req.query;
 
-module.exports = {
-  getCarbonProjects,
-  getPrices,
+    const response = await axios.get(`${CARBONMARK_API}/prices`, {
+      headers,
+      params: { projectIds, minSupply },
+    });
+
+    res.status(200).json(response.data ?? []);
+  } catch (error) {
+    console.error(
+      "Error fetching prices:",
+      error.response?.data || error.message,
+    );
+    res.status(500).json({ error: "Failed to fetch prices" });
+  }
 };
 
 // const qs = require("qs");
