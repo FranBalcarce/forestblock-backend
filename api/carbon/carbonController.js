@@ -46,7 +46,19 @@ exports.getPrices = async (req, res) => {
 // ============================
 
 exports.getCarbonProjects = async (req, res) => {
-  res.status(200).json([]);
+  try {
+    const response = await axios.get("https://api.carbonmark.com/projects", {
+      headers,
+    });
+
+    res.status(200).json(response.data);
+  } catch (error) {
+    console.error(
+      "Error fetching projects",
+      error.response?.data || error.message,
+    );
+    res.status(500).json({ error: "Failed to fetch projects" });
+  }
 };
 
 exports.getCarbonProjectById = async (req, res) => {
