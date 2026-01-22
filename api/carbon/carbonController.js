@@ -15,15 +15,22 @@ const headers = {
 ========================= */
 exports.getCarbonProjects = async (req, res) => {
   try {
-    const response = await axios.get(`${CARBONMARK_API}/projects`, { headers });
+    const response = await axios.get(
+      "https://api.carbonmark.com/v18/projects",
+      { headers },
+    );
 
     res.status(200).json(response.data);
   } catch (error) {
-    console.error(
-      "Error fetching carbon projects:",
-      error.response?.data || error.message,
-    );
-    res.status(500).json({ error: "Failed to fetch carbon projects" });
+    console.error("CARBONMARK ERROR STATUS:", error.response?.status);
+    console.error("CARBONMARK ERROR DATA:", error.response?.data);
+    console.error("CARBONMARK ERROR MSG:", error.message);
+
+    res.status(500).json({
+      error: "Failed to fetch carbon projects",
+      status: error.response?.status,
+      details: error.response?.data || error.message,
+    });
   }
 };
 
