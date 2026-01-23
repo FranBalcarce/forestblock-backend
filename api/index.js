@@ -1,13 +1,7 @@
 import express from "express";
 
 import authRoutes from "./auth/authRoutes.js";
-import userRoutes from "./users/userRoutes.js";
-import paymentRoutes from "./payments/paymentRoutes.js";
 import carbonRoutes from "./carbon/carbonRoutes.js";
-import manglaiRoutes from "./manglai/manglaiRoutes.js";
-import retirementsRoutes from "./retirements/retirementsRoutes.js";
-import klimapiRoutes from "./klimapi/klimapiRoutes.js";
-import planInquiryRoutes from "./plan-inquiry/planRoutes.js";
 
 const router = express.Router();
 
@@ -16,12 +10,6 @@ router.get("/", (_, res) => {
 });
 
 router.use("/auth", authRoutes);
-router.use("/users", userRoutes);
-router.use("/payments", paymentRoutes);
 router.use("/carbon", carbonRoutes);
-router.use("/manglai", manglaiRoutes);
-router.use("/retirements", retirementsRoutes);
-router.use("/klimapi", klimapiRoutes);
-router.use("/plan", planInquiryRoutes);
 
 export default router;
