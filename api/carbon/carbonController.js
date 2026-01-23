@@ -34,7 +34,9 @@ exports.getCarbonProjects = async (req, res) => {
     /* 2️⃣ Extraer projectIds únicos */
     const projectIds = [
       ...new Set(
-        listings.map((l) => l?.listing?.creditId?.projectId).filter(Boolean),
+        listings
+          .map((l) => l?.listing?.creditId?.projectId || l?.creditId?.projectId)
+          .filter(Boolean),
       ),
     ];
 
