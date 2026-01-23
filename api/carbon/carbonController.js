@@ -11,6 +11,14 @@ const carbonmarkAxios = axios.create({
   },
   timeout: 15000,
 });
+const pricesRes = await axios.get(`${CARBONMARK_BASE_URL}/prices`, {
+  params: { minSupply: 1 },
+  headers: {
+    Authorization: `Bearer ${CARBONMARK_API_KEY}`,
+  },
+});
+
+console.log("🔎 RAW pricesRes.data:", JSON.stringify(pricesRes.data, null, 2));
 
 /**
  * GET /api/carbon/carbonProjects
