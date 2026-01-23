@@ -1,12 +1,13 @@
-const express = require("express");
-const authRoutes = require("./auth/authRoutes");
-const userRoutes = require("./users/userRoutes");
-const paymentRoutes = require("./payments/paymentRoutes");
-const carbonRoutes = require("./carbon/carbonRoutes");
-const manglaiRoutes = require("./manglai/manglaiRoutes");
-const retirementsRoutes = require("./retirements/retirementsRoutes");
-const klimapiRoutes = require("./klimapi/klimapiRoutes");
-const planInquiryRoutes = require("./plan-inquiry/planRoutes");
+import express from "express";
+
+import authRoutes from "./auth/authRoutes.js";
+import userRoutes from "./users/userRoutes.js";
+import paymentRoutes from "./payments/paymentRoutes.js";
+import carbonRoutes from "./carbon/carbonRoutes.js";
+import manglaiRoutes from "./manglai/manglaiRoutes.js";
+import retirementsRoutes from "./retirements/retirementsRoutes.js";
+import klimapiRoutes from "./klimapi/klimapiRoutes.js";
+import planInquiryRoutes from "./plan-inquiry/planRoutes.js";
 
 const router = express.Router();
 
@@ -23,4 +24,4 @@ router.use("/retirements", retirementsRoutes);
 router.use("/klimapi", klimapiRoutes);
 router.use("/plan", planInquiryRoutes);
 
-module.exports = router;
+export default router;
