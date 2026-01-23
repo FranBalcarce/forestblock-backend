@@ -1,4 +1,4 @@
-const axios = require("axios");
+import axios from "axios";
 
 const CARBONMARK_BASE_URL = "https://v18.api.carbonmark.com";
 const CARBONMARK_API_KEY = process.env.CARBONMARK_API_KEY;
@@ -9,11 +9,11 @@ const headers = {
 
 /**
  * GET /api/carbon/carbonProjects
- * Devuelve proyectos que tengan listings con supply > 0
+ * Proyectos que tengan listings con supply > 0
  */
-exports.getCarbonProjects = async (req, res) => {
+export const getCarbonProjects = async (req, res) => {
   try {
-    /* 1️⃣ Traemos TODOS los proyectos */
+    // 1️⃣ Traer proyectos
     const projectsRes = await axios.get(`${CARBONMARK_BASE_URL}/projects`, {
       headers,
     });
@@ -24,14 +24,14 @@ exports.getCarbonProjects = async (req, res) => {
       return res.json({ items: [] });
     }
 
-    /* 2️⃣ Traemos TODOS los prices */
+    // 2️⃣ Traer prices
     const pricesRes = await axios.get(`${CARBONMARK_BASE_URL}/prices`, {
       headers,
     });
 
     const prices = pricesRes.data?.items ?? [];
 
-    /* 3️⃣ Obtenemos projectIds con stock */
+    // 3️⃣ Project IDs con stock
     const projectIdsWithStock = new Set(
       prices
         .filter((p) => Number(p.supply) > 0)
@@ -39,20 +39,14 @@ exports.getCarbonProjects = async (req, res) => {
         .filter(Boolean),
     );
 
-    /* 4️⃣ Filtramos proyectos */
+    // 4️⃣ Filtrar proyectos
     const filteredProjects = projects.filter((p) =>
       projectIdsWithStock.has(p.projectId),
     );
 
-    return res.json({
-      items: filteredProjects,
-    });
+    return res.json({ items: filteredProjects });
   } catch (error) {
-    console.error(
-      "❌ Error fetching carbon projects:",
-      error?.response?.data || error,
-    );
-
+    console.error("❌ Error fetching carbon projects:", error);
     return res.status(500).json({
       error: "Failed to fetch carbon projects",
     });
@@ -62,7 +56,7 @@ exports.getCarbonProjects = async (req, res) => {
 /**
  * GET /api/carbon/prices
  */
-exports.getPrices = async (req, res) => {
+export const getPrices = async (req, res) => {
   try {
     const response = await axios.get(`${CARBONMARK_BASE_URL}/prices`, {
       headers,
@@ -72,7 +66,7 @@ exports.getPrices = async (req, res) => {
       items: response.data?.items ?? [],
     });
   } catch (error) {
-    console.error("Error fetching prices", error?.response?.data || error);
+    console.error("❌ Error fetching prices:", error);
     return res.status(500).json({
       error: "Failed to fetch prices",
     });
