@@ -1,95 +1,93 @@
 const axios = require("axios");
 
-const CARBONMARK_API = "https://v18.api.carbonmark.com";
+const CARBONMARK_BASE_URL = "https://v18.api.carbonmark.com";
+const CARBONMARK_API_KEY = process.env.CARBONMARK_API_KEY;
 
-if (!process.env.CARBONMARK_API_KEY) {
-  throw new Error("CARBONMARK_API_KEY is not defined");
-}
+const carbonmarkAxios = axios.create({
+  baseURL: CARBONMARK_BASE_URL,
+  headers: {
+    Authorization: `Bearer ${CARBONMARK_API_KEY}`,
+    "Content-Type": "application/json",
+  },
+  timeout: 15000,
+});
 
-const headers = {
-  Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
-};
-
-// ============================
-// GET PROJECTS WITH STOCK
-// ============================
+/**
+ * GET /api/carbon/carbonProjects
+ * Devuelve SOLO proyectos que tengan listings con supply > 0
+ */
 exports.getCarbonProjects = async (req, res) => {
   try {
-    // 1️⃣ Traer todos los proyectos
-    const projectsRes = await axios.get(`${CARBONMARK_API}/projects`, {
-      headers,
+    /* 1️⃣ Traer listings con stock */
+    const pricesRes = await carbonmarkAxios.get("/prices", {
+      params: {
+        minSupply: 1,
+      },
     });
 
-    const projects = projectsRes.data?.items ?? [];
+    const listings = pricesRes.data?.items ?? [];
 
-    // 2️⃣ Construir IDs tipo VCS-191
-    const projectIds = projects
-      .map((p) => {
-        const standard = p.standards?.[0]?.key;
-        if (!standard || !p.projectID) return null;
-        return `${standard}-${p.projectID}`;
-      })
-      .filter(Boolean);
+    if (!listings.length) {
+      return res.status(200).json({ items: [] });
+    }
+
+    /* 2️⃣ Extraer projectIds únicos */
+    const projectIds = [
+      ...new Set(
+        listings.map((l) => l?.listing?.creditId?.projectId).filter(Boolean),
+      ),
+    ];
 
     if (!projectIds.length) {
       return res.status(200).json({ items: [] });
     }
 
-    // 3️⃣ Traer precios SOLO de esos proyectos
-    const pricesRes = await axios.get(`${CARBONMARK_API}/prices`, {
-      headers,
+    /* 3️⃣ Pedir SOLO esos proyectos */
+    const projectsRes = await carbonmarkAxios.get("/projects", {
       params: {
         projectIds: projectIds.join(","),
+      },
+    });
+
+    return res.status(200).json({
+      items: projectsRes.data?.items ?? [],
+    });
+  } catch (error) {
+    console.error(
+      "❌ Error fetching carbon projects:",
+      error?.response?.data || error.message || error,
+    );
+
+    return res.status(500).json({
+      error: "Failed to fetch carbon projects",
+    });
+  }
+};
+
+/**
+ * GET /api/carbon/prices
+ * Devuelve SOLO listings con supply > 0
+ */
+exports.getPrices = async (req, res) => {
+  try {
+    const response = await carbonmarkAxios.get("/prices", {
+      params: {
         minSupply: 1,
       },
     });
 
-    const prices = pricesRes.data ?? [];
-
-    // 4️⃣ Proyectos que tienen listings
-    const projectsWithStock = new Set(
-      prices
-        .filter((p) => p.type === "listing")
-        .map((p) => p.listing?.creditId?.projectId)
-        .filter(Boolean),
-    );
-
-    // 5️⃣ Filtrar proyectos
-    const marketProjects = projects.filter((p) => {
-      const standard = p.standards?.[0]?.key;
-      if (!standard) return false;
-      return projectsWithStock.has(`${standard}-${p.projectID}`);
+    return res.status(200).json({
+      items: response.data?.items ?? [],
     });
-
-    res.status(200).json({ items: marketProjects });
   } catch (error) {
     console.error(
-      "Error fetching carbon projects:",
-      error.response?.data || error.message,
+      "❌ Error fetching prices:",
+      error?.response?.data || error.message || error,
     );
-    res.status(500).json({ error: "Failed to fetch carbon projects" });
-  }
-};
 
-// ============================
-// GET PRICES (DETAIL)
-// ============================
-exports.getPrices = async (req, res) => {
-  try {
-    const { projectIds, minSupply = 1 } = req.query;
-
-    const response = await axios.get(`${CARBONMARK_API}/prices`, {
-      headers,
-      params: { projectIds, minSupply },
+    return res.status(500).json({
+      error: "Failed to fetch prices",
     });
-
-    res.status(200).json(response.data ?? []);
-  } catch (error) {
-    console.error(
-      "Error fetching prices:",
-      error.response?.data || error.message,
-    );
-    res.status(500).json({ error: "Failed to fetch prices" });
   }
 };
 

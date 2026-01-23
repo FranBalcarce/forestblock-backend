@@ -1,7 +1,6 @@
 const express = require("express");
-const { getCarbonProjects, getPrices } = require("./carbonController");
-
 const router = express.Router();
+const { getCarbonProjects, getPrices } = require("./carbonController");
 
 router.get("/carbonProjects", getCarbonProjects);
 router.get("/prices", getPrices);
