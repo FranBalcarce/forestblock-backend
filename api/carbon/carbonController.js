@@ -1,133 +1,83 @@
-import carbonmark from "./carbonmarkClient.js";
+import axios from "axios";
 
+const CARBONMARK_BASE_URL = "https://v18.api.carbonmark.com";
+const CARBONMARK_API_KEY = process.env.CARBONMARK_API_KEY;
+
+const carbonmark = axios.create({
+  baseURL: CARBONMARK_BASE_URL,
+  headers: {
+    Authorization: `Bearer ${CARBONMARK_API_KEY}`,
+    "Content-Type": "application/json",
+  },
+});
+
+/**
+ * GET /api/carbon/carbonProjects
+ * Devuelve SOLO proyectos con listings disponibles
+ */
 export const getCarbonProjects = async (req, res) => {
   try {
-    const pricesRes = await carbonmark.get("/prices");
+    // 1️⃣ Prices con supply
+    const pricesRes = await carbonmark.get("/prices", {
+      params: { minSupply: 1 },
+    });
 
-    const items = pricesRes.data || [];
+    const prices = pricesRes.data?.items ?? [];
+    if (!prices.length) {
+      return res.json({ items: [] });
+    }
 
-    const projectsMap = {};
+    // 2️⃣ Project IDs únicos
+    const projectIds = [
+      ...new Set(prices.map((p) => p.creditId?.projectId).filter(Boolean)),
+    ];
 
-    items.forEach((item) => {
-      const listing = item.listing;
-      const token = item.token;
+    // 3️⃣ Pedimos proyectos uno por uno (FORMA CORRECTA)
+    const projects = [];
 
-      if (!listing || !token) return;
-
-      const projectId = listing.projectId;
-
-      if (!projectsMap[projectId]) {
-        projectsMap[projectId] = {
-          projectId,
-          vintage: listing.vintage,
-          creditId: listing.creditId,
-          price: item.purchasePrice,
-          basePrice: item.baseUnitPrice,
-          supply: item.supply,
-          liquidSupply: item.liquidSupply,
-          minFillAmount: item.minFillAmount,
-          tokenId: token.id,
-          tokenName: token.name,
-          tokenSymbol: token.symbol,
-          tokenDecimals: token.decimals,
-        };
+    for (const projectId of projectIds) {
+      try {
+        const projectRes = await carbonmark.get(`/projects/${projectId}`);
+        if (projectRes.data) {
+          projects.push(projectRes.data);
+        }
+      } catch (err) {
+        // si alguno falla, no rompe todo
+        console.warn(`Proyecto ${projectId} no encontrado`);
       }
-    });
+    }
 
-    return res.status(200).json({
-      items: Object.values(projectsMap),
-    });
+    return res.json({ items: projects });
   } catch (error) {
     console.error(
       "❌ Error fetching carbon projects:",
-      error.response?.data || error,
+      error.response?.data || error.message,
     );
     return res.status(500).json({
-      message: "Error fetching carbon projects",
+      error: "Failed to fetch carbon projects",
     });
   }
 };
 
-// import axios from "axios";
+/**
+ * GET /api/carbon/prices
+ */
+export const getPrices = async (req, res) => {
+  try {
+    const response = await carbonmark.get("/prices", {
+      params: { minSupply: 1 },
+    });
 
-// const CARBONMARK_BASE_URL = "https://v18.api.carbonmark.com";
-// const CARBONMARK_API_KEY = process.env.CARBONMARK_API_KEY;
-
-// const carbonmark = axios.create({
-//   baseURL: CARBONMARK_BASE_URL,
-//   headers: {
-//     Authorization: `Bearer ${CARBONMARK_API_KEY}`,
-//     "Content-Type": "application/json",
-//   },
-// });
-
-// /**
-//  * GET /api/carbon/carbonProjects
-//  * Devuelve SOLO proyectos con listings disponibles
-//  */
-// export const getCarbonProjects = async (req, res) => {
-//   try {
-//     // 1️⃣ Prices con supply
-//     const pricesRes = await carbonmark.get("/prices", {
-//       params: { minSupply: 1 },
-//     });
-
-//     const prices = pricesRes.data?.items ?? [];
-//     if (!prices.length) {
-//       return res.json({ items: [] });
-//     }
-
-//     // 2️⃣ Project IDs únicos
-//     const projectIds = [
-//       ...new Set(prices.map((p) => p.creditId?.projectId).filter(Boolean)),
-//     ];
-
-//     // 3️⃣ Pedimos proyectos uno por uno (FORMA CORRECTA)
-//     const projects = [];
-
-//     for (const projectId of projectIds) {
-//       try {
-//         const projectRes = await carbonmark.get(`/projects/${projectId}`);
-//         if (projectRes.data) {
-//           projects.push(projectRes.data);
-//         }
-//       } catch (err) {
-//         // si alguno falla, no rompe todo
-//         console.warn(`Proyecto ${projectId} no encontrado`);
-//       }
-//     }
-
-//     return res.json({ items: projects });
-//   } catch (error) {
-//     console.error(
-//       "❌ Error fetching carbon projects:",
-//       error.response?.data || error.message,
-//     );
-//     return res.status(500).json({
-//       error: "Failed to fetch carbon projects",
-//     });
-//   }
-// };
-
-// /**
-//  * GET /api/carbon/prices
-//  */
-// export const getPrices = async (req, res) => {
-//   try {
-//     const response = await carbonmark.get("/prices", {
-//       params: { minSupply: 1 },
-//     });
-
-//     return res.json({
-//       items: response.data?.items ?? [],
-//     });
-//   } catch (error) {
-//     console.error("❌ Error fetching prices:", error.response?.data || error);
-//     return res.status(500).json({
-//       error: "Failed to fetch prices",
-//     });
-//   }
-// };
+    return res.json({
+      items: response.data?.items ?? [],
+    });
+  } catch (error) {
+    console.error("❌ Error fetching prices:", error.response?.data || error);
+    return res.status(500).json({
+      error: "Failed to fetch prices",
+    });
+  }
+};
 
 // const qs = require("qs");
 // const {
