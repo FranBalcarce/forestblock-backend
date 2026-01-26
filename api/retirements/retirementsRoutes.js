@@ -1,13 +1,19 @@
 import express from "express";
-import * as controller from "./retirementsController.js";
+import {
+  createRetirement,
+  getRetirementsList,
+  getRetirementDetail,
+  getRetirementByPaymentId,
+  getRetirementsSummary,
+} from "./retirementsController.js";
 
 const router = express.Router();
 
-router.get("/summary", controller.getRetirementsSummary);
-router.post("/registerRetirement", controller.createRetirement);
-router.get("/byPaymentId/:paymentId", controller.getRetirementByPaymentId);
-router.get("/:id/:walletAddress", controller.getRetirementDetail);
-router.get("/", controller.getRetirementsList);
+router.get("/summary", getRetirementsSummary);
+router.post("/registerRetirement", createRetirement);
+router.get("/byPaymentId/:paymentId", getRetirementByPaymentId);
+router.get("/:id/:walletAddress", getRetirementDetail);
+router.get("/", getRetirementsList);
 
 export default router;
 
