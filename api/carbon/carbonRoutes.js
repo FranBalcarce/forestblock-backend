@@ -1,12 +1,12 @@
-import express from "express";
-import { getCarbonProjects, getPrices } from "./carbonController.js";
+const express = require("express");
+const { getCarbonProjects, getPrices } = require("./carbonController");
 
 const router = express.Router();
 
 router.get("/carbonProjects", getCarbonProjects);
 router.get("/prices", getPrices);
 
-export default router;
+module.exports = router;
 
 // const express = require("express");
 // const {
