@@ -2,7 +2,7 @@ import User from "../users/userModel.js";
 import { sendOTP } from "../utils/mailer.js";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
-import { ethers } from "ethers";
+import { Wallet } from "ethers";
 import { encryptPrivateKey } from "../utils/encryption.js";
 import axios from "axios";
 
@@ -57,7 +57,7 @@ export const sendOTPController = async (req, res) => {
   }
 };
 
-export const verifyOTPController = async (req, res) => {
+export const verifyOTP = async (req, res) => {
   const { email, otp } = req.body;
 
   if (!email || !otp) {
@@ -78,22 +78,23 @@ export const verifyOTPController = async (req, res) => {
     }
 
     if (!user.security.walletAddress) {
-      const wallet = ethers.Wallet.createRandom();
+      const wallet = Wallet.createRandom();
 
-      const { encryptedData: encryptedPrivateKey, iv: privateKeyIv } =
-        encryptPrivateKey(wallet.privateKey, process.env.ENCRYPTION_SECRET);
+      const privateKeyEncrypted = encryptPrivateKey(
+        wallet.privateKey,
+        process.env.ENCRYPTION_SECRET,
+      );
 
-      const { encryptedData: encryptedMnemonic, iv: mnemonicKeyIv } =
-        encryptPrivateKey(
-          wallet.mnemonic.phrase,
-          process.env.ENCRYPTION_SECRET,
-        );
+      const mnemonicEncrypted = encryptPrivateKey(
+        wallet.mnemonic.phrase,
+        process.env.ENCRYPTION_SECRET,
+      );
 
       user.security.walletAddress = wallet.address;
-      user.security.encryptedPrivateKey = encryptedPrivateKey;
-      user.security.privateKeyIv = privateKeyIv;
-      user.security.encryptedMnemonic = encryptedMnemonic;
-      user.security.mnemonicKeyIv = mnemonicKeyIv;
+      user.security.encryptedPrivateKey = privateKeyEncrypted.encryptedData;
+      user.security.privateKeyIv = privateKeyEncrypted.iv;
+      user.security.encryptedMnemonic = mnemonicEncrypted.encryptedData;
+      user.security.mnemonicKeyIv = mnemonicEncrypted.iv;
     }
 
     user.security.otp = null;
@@ -110,8 +111,6 @@ export const verifyOTPController = async (req, res) => {
         _id: user._id,
         email: user.email,
         walletAddress: user.security.walletAddress,
-        profile: user.profile || {},
-        manglaiCompanyId: user.manglaiCompanyId,
       },
     });
   } catch (error) {
