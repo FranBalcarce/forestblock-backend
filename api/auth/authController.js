@@ -27,7 +27,7 @@ exports.sendOTP = async (req, res) => {
           secret: process.env.RECAPTCHA_SECRET_KEY,
           response: captcha_token,
         },
-      }
+      },
     );
 
     if (!recaptchaResponse.data.success) {
@@ -83,7 +83,7 @@ exports.verifyOTP = async (req, res) => {
       const { encryptedData: encryptedMnemonic, iv: mnemonicKeyIv } =
         encryptPrivateKey(
           wallet.mnemonic.phrase,
-          process.env.ENCRYPTION_SECRET
+          process.env.ENCRYPTION_SECRET,
         );
 
       user.security.walletAddress = wallet.address;
