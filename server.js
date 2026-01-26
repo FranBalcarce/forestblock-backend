@@ -1,6 +1,4 @@
-import dotenv from "dotenv";
-dotenv.config();
-
+import "dotenv/config";
 import path from "path";
 import express from "express";
 import bodyParser from "body-parser";
@@ -17,40 +15,42 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
+/**
+ * IMPORTANTE PARA RAILWAY
+ */
 app.set("trust proxy", 1);
 
-/* DB */
+/* ================= DB ================= */
 connectDB();
 
-/* Middlewares */
+/* ================= MIDDLEWARES ================= */
 app.use(cors());
 app.use(helmet());
 app.use(bodyParser.json());
 
-/* Static */
+/* ================= STATIC FILES ================= */
 app.use("/images", express.static("public/images"));
 app.use("/fonts", express.static(path.join(__dirname, "public/fonts")));
 app.use(express.static(path.join(__dirname, "public")));
 
-/* Rate limit */
-app.use(
-  rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 100,
-  }),
-);
-
-/* API */
-app.use("/api", apiRoutes);
-
-/* Health */
-app.get("/", (_, res) => {
-  res.json({
-    status: "ok",
-    service: "forestblock-api",
-  });
+/* ================= RATE LIMIT ================= */
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
-/* Start */
+app.use(limiter);
+
+/* ================= API ROUTES ================= */
+app.use("/api", apiRoutes);
+
+/* ================= HEALTH ================= */
+app.get("/", (req, res) => {
+  res.json({ status: "ok", service: "forestblock-api" });
+});
+
+/* ================= START ================= */
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`✅ Servidor corriendo en puerto ${PORT}`));
