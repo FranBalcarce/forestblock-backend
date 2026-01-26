@@ -1,30 +1,30 @@
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
+import dotenv from "dotenv";
 
-const transporter = nodemailer.createTransport({
-  host: process.env.MAIL_HOST,
-  port: Number(process.env.MAIL_PORT),
-  secure: process.env.MAIL_SECURE === "true",
-  auth: {
-    user: process.env.MAIL_USER,
-    pass: process.env.MAIL_PASS,
-  },
-});
+dotenv.config();
 
-export const sendOTP = async (email, otp) => {
-  const mailOptions = {
-    from: `"Forestblock" <${process.env.MAIL_FROM}>`,
-    to: email,
-    subject: "Tu código de verificación",
-    html: `
-      <h2>Código de verificación</h2>
-      <p>Tu código OTP es:</p>
-      <h1>${otp}</h1>
-      <p>Este código expira en 5 minutos.</p>
-    `,
-  };
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-  await transporter.sendMail(mailOptions);
-};
+export async function sendOTP(email, otp) {
+  try {
+    await resend.emails.send({
+      from: "ForestBlock <no-reply@forestblock.app>",
+      to: email,
+      subject: "Tu código de verificación",
+      html: `
+        <div style="font-family: Arial, sans-serif">
+          <h2>Verificación ForestBlock</h2>
+          <p>Tu código de verificación es:</p>
+          <h1 style="letter-spacing: 4px">${otp}</h1>
+          <p>Este código expira en 5 minutos.</p>
+        </div>
+      `,
+    });
+  } catch (error) {
+    console.error("Error enviando OTP:", error);
+    throw new Error("No se pudo enviar el OTP");
+  }
+}
 
 // require('dotenv').config();
 // const { Resend } = require('resend');
