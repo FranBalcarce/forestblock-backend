@@ -1,4 +1,4 @@
-const axios = require("axios");
+import axios from "axios";
 
 const axiosInstance = axios.create({
   baseURL: "https://api.carbonmark.com",
@@ -9,4 +9,4 @@ const axiosInstance = axios.create({
   timeout: 20000,
 });
 
-module.exports = axiosInstance;
+export default axiosInstance;
