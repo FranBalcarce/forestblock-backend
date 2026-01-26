@@ -1,30 +1,28 @@
 import { Resend } from "resend";
-import dotenv from "dotenv";
 
-dotenv.config();
+if (!process.env.RESEND_API_KEY) {
+  throw new Error("❌ RESEND_API_KEY no está definida");
+}
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-export async function sendOTP(email, otp) {
-  try {
-    await resend.emails.send({
-      from: "ForestBlock <no-reply@forestblock.app>",
-      to: email,
-      subject: "Tu código de verificación",
-      html: `
-        <div style="font-family: Arial, sans-serif">
-          <h2>Verificación ForestBlock</h2>
-          <p>Tu código de verificación es:</p>
-          <h1 style="letter-spacing: 4px">${otp}</h1>
-          <p>Este código expira en 5 minutos.</p>
-        </div>
-      `,
-    });
-  } catch (error) {
-    console.error("Error enviando OTP:", error);
-    throw new Error("No se pudo enviar el OTP");
-  }
-}
+export const sendOTP = async (email, otp) => {
+  await resend.emails.send({
+    from: "Forestblock <no-reply@forestblock.com>",
+    to: email,
+    subject: "Tu código de verificación",
+    html: `<p>Tu código es: <strong>${otp}</strong></p>`,
+  });
+};
+
+export const sendInquiryMail = async (data) => {
+  await resend.emails.send({
+    from: "Forestblock <no-reply@forestblock.com>",
+    to: "contact@forestblock.com",
+    subject: "Nueva consulta de plan",
+    html: `<pre>${JSON.stringify(data, null, 2)}</pre>`,
+  });
+};
 
 // require('dotenv').config();
 // const { Resend } = require('resend');

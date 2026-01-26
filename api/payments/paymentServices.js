@@ -1,63 +1,58 @@
-const { Alchemy, Network } = require("alchemy-sdk");
-const mongoose = require("mongoose");
-const PaymentModel = require("./paymentModel");
+import { Alchemy, Network } from "alchemy-sdk";
+import mongoose from "mongoose";
+import PaymentModel from "./paymentModel.js";
 
 const ENVIRONMENT = process.env.ENVIRONMENT || "development";
 
-let network, tokenContractAddress;
+let network;
+let tokenContractAddress;
 
 if (ENVIRONMENT === "production") {
   network = Network.MATIC_MAINNET;
   tokenContractAddress =
-    "0xc2132d05d31c914a87c6611c10748aeb04b58e8f".toLowerCase(); // USDT en Mainnet
+    "0xc2132d05d31c914a87c6611c10748aeb04b58e8f".toLowerCase(); // USDT Mainnet
 } else {
   network = Network.ETH_SEPOLIA;
   tokenContractAddress =
-    "0x779877A7B0D9E8603169DdbD7836e478b4624789".toLowerCase(); // LINK en Sepolia
+    "0x779877A7B0D9E8603169DdbD7836e478b4624789".toLowerCase(); // LINK Sepolia
 }
 
-const alchemyConfig = {
+const alchemy = new Alchemy({
   apiKey: process.env.ALCHEMY_API_KEY,
-  network: network,
-};
+  network,
+});
 
-const alchemy = new Alchemy(alchemyConfig);
-
-const monitorSingleWallet = async (
+/* =========================================================
+   MONITOR WALLET
+========================================================= */
+export const monitorSingleWallet = async (
   walletAddress,
   paymentId,
-  expectedAmount
+  expectedAmount,
 ) => {
-  console.log(`Iniciando monitoreo para la billetera: ${walletAddress}`);
-  const MAX_MONITORING_TIME = 600000; // 10 minutos en milisegundos
-  const INTERVAL_TIME = 5000; // 5 segundos en milisegundos
-  const startTime = Date.now();
-  let balance = 0; // Balance acumulado
-  const processedTransactions = new Set(); // Registro de hashes procesados
+  console.log(`🔍 Monitoring wallet: ${walletAddress}`);
 
   if (!mongoose.Types.ObjectId.isValid(paymentId)) {
-    console.error(`paymentId inválido: ${paymentId}`);
+    console.error("❌ Invalid paymentId:", paymentId);
     return;
   }
 
+  const MAX_TIME = 10 * 60 * 1000;
+  const INTERVAL = 5000;
+  const start = Date.now();
+
+  let balance = 0;
+  const processed = new Set();
+
   const interval = setInterval(async () => {
     try {
-      // Calculamos el tiempo real transcurrido
-      const elapsedTime = Date.now() - startTime;
-      console.log(`Tiempo transcurrido: ${elapsedTime} ms`);
-
-      // Si se supera el tiempo máximo, detener el monitoreo
-      if (elapsedTime >= MAX_MONITORING_TIME) {
-        console.log(
-          `Tiempo máximo de monitoreo alcanzado para la billetera: ${walletAddress}`
-        );
+      if (Date.now() - start > MAX_TIME) {
+        console.log("⏱️ Monitoring timeout");
         clearInterval(interval);
         return;
       }
 
-      const DECIMALS = 2;
-      console.log("Realizando solicitud a Alchemy...");
-      const response = await alchemy.core.getAssetTransfers({
+      const res = await alchemy.core.getAssetTransfers({
         fromBlock: "0x0",
         toAddress: walletAddress,
         contractAddresses: [tokenContractAddress],
@@ -65,60 +60,32 @@ const monitorSingleWallet = async (
         excludeZeroValue: true,
       });
 
-      if (response.transfers.length > 0) {
-        console.log(`Transacciones detectadas: ${response.transfers.length}`);
+      for (const tx of res.transfers) {
+        if (processed.has(tx.hash)) continue;
 
-        for (const transfer of response.transfers) {
-          const transferAmount = parseFloat(transfer.value);
-          const transferHash = transfer.hash;
+        processed.add(tx.hash);
 
-          if (!processedTransactions.has(transferHash)) {
-            processedTransactions.add(transferHash);
-
-            if (!isNaN(transferAmount)) {
-              balance += transferAmount;
-              console.log(
-                `Monto recibido: ${transferAmount}, Balance acumulado: ${balance}`
-              );
-            }
-
-            // Actualizar el balance parcial en la base de datos
-            await PaymentModel.findByIdAndUpdate(paymentId, {
-              amountReceived: balance,
-              updatedAt: new Date(),
-            });
-          }
+        const amount = Number(tx.value);
+        if (!isNaN(amount)) {
+          balance += amount;
         }
 
-        const roundedBalance = parseFloat(balance.toFixed(DECIMALS));
-        const roundedExpected = parseFloat(expectedAmount.toFixed(DECIMALS));
-
-        if (roundedBalance >= roundedExpected) {
-          console.log(
-            `Pago confirmado para la billetera: ${walletAddress}. Balance final redondeado: ${roundedBalance}`
-          );
-
-          await PaymentModel.findByIdAndUpdate(paymentId, {
-            status: "CONFIRMED",
-            updatedAt: new Date(),
-          });
-
-          clearInterval(interval);
-        } else {
-          console.log(
-            `Balance insuficiente para confirmar el pago. Se espera: ${roundedExpected}, Actual: ${roundedBalance}`
-          );
-        }
-      } else {
-        console.log("No se detectaron transacciones relevantes.");
+        await PaymentModel.findByIdAndUpdate(paymentId, {
+          amountReceived: balance,
+        });
       }
-    } catch (error) {
-      console.error(
-        `Error al solicitar transacciones para la billetera ${walletAddress}:`,
-        error
-      );
-    }
-  }, INTERVAL_TIME);
-};
 
-module.exports = { monitorSingleWallet };
+      if (balance >= expectedAmount) {
+        console.log("✅ Payment confirmed");
+
+        await PaymentModel.findByIdAndUpdate(paymentId, {
+          status: "CONFIRMED",
+        });
+
+        clearInterval(interval);
+      }
+    } catch (err) {
+      console.error("monitorSingleWallet error:", err);
+    }
+  }, INTERVAL);
+};

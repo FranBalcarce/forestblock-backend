@@ -1,7 +1,7 @@
-const Retirement = require("./retirementsModel");
-const mongoose = require("mongoose");
+import Retirement from "./retirementsModel.js";
+import mongoose from "mongoose";
 
-exports.createRetirement = async (req, res) => {
+export const createRetirement = async (req, res) => {
   try {
     const { project, paymentId, selectedVintage, order, walletAddress } =
       req.body;
@@ -23,60 +23,60 @@ exports.createRetirement = async (req, res) => {
     }
 
     const retirement = await Retirement.create({
-      project: { ...project, selectedVintage: selectedVintage },
+      project: { ...project, selectedVintage },
       payment: paymentId,
       order: order.order,
       quote: order.quote,
-      walletAddress: walletAddress,
+      walletAddress,
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Registro de retirement creado correctamente.",
       retirement,
     });
   } catch (error) {
     console.error("Error al crear el registro de retirement:", error);
-    res.status(500).json({ message: "Error interno del servidor." });
+    return res.status(500).json({ message: "Error interno del servidor." });
   }
 };
 
-exports.getRetirementsList = async (req, res) => {
+export const getRetirementsList = async (req, res) => {
   try {
     const { walletAddress } = req.query;
 
-    const localRetirements = await Retirement.find({
-      walletAddress: walletAddress,
-    });
+    const localRetirements = await Retirement.find({ walletAddress });
 
-    res.status(200).json({
+    return res.status(200).json({
       local: localRetirements,
     });
   } catch (error) {
     console.error("Error fetching retirements:", error);
-    res.status(500).json({ message: "Error fetching retirements" });
+    return res.status(500).json({ message: "Error fetching retirements" });
   }
 };
 
-exports.getRetirementDetail = async (req, res) => {
+export const getRetirementDetail = async (req, res) => {
   try {
     const { id, walletAddress } = req.params;
 
-    const localRetirement = await Retirement.find({
-      walletAddress: walletAddress,
+    const localRetirement = await Retirement.findOne({
+      walletAddress,
       _id: id,
     });
 
-    res.status(200).json({
-      retirement: localRetirement[0],
-      retirementId: localRetirement[0]._id,
+    return res.status(200).json({
+      retirement: localRetirement,
+      retirementId: localRetirement?._id,
     });
   } catch (error) {
     console.error("Error fetching retirement detail:", error);
-    res.status(500).json({ message: "Error fetching retirement detail" });
+    return res
+      .status(500)
+      .json({ message: "Error fetching retirement detail" });
   }
 };
 
-exports.getRetirementByPaymentId = async (req, res) => {
+export const getRetirementByPaymentId = async (req, res) => {
   try {
     const { paymentId } = req.params;
 
@@ -86,30 +86,25 @@ exports.getRetirementByPaymentId = async (req, res) => {
         .json({ message: "paymentId no es un ObjectId válido" });
     }
 
-    const objectId = new mongoose.Types.ObjectId(paymentId);
-    const retirement = await Retirement.findOne({ payment: objectId });
+    const retirement = await Retirement.findOne({
+      payment: new mongoose.Types.ObjectId(paymentId),
+    });
 
-    res.status(200).json({ retirement });
+    return res.status(200).json({ retirement });
   } catch (error) {
     console.error("Error fetching retirement by payment ID:", error);
-    res
+    return res
       .status(500)
       .json({ message: "Error fetching retirement by payment ID" });
   }
 };
 
-/**
- * NUEVO: resumen de retiros por walletAddress
- * GET /api/retirements/summary?walletAddress=0x...
- */
-exports.getRetirementsSummary = async (req, res) => {
+export const getRetirementsSummary = async (req, res) => {
   try {
     const { walletAddress } = req.query;
 
     if (!walletAddress) {
-      return res
-        .status(400)
-        .json({ message: "walletAddress es requerido para el resumen." });
+      return res.status(400).json({ message: "walletAddress es requerido." });
     }
 
     const retirements = await Retirement.find({ walletAddress });
@@ -118,7 +113,6 @@ exports.getRetirementsSummary = async (req, res) => {
     let lastRetirementAt = null;
 
     retirements.forEach((r) => {
-      // ⚠️ Ajustá estos campos según cómo guardes la cantidad de toneladas en tu modelo
       const qty =
         Number(r.project?.quantityTonnes) ||
         Number(r.project?.quantity) ||

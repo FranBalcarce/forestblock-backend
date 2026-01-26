@@ -1,8 +1,9 @@
-const express = require("express");
-const { getPlanInquiry } = require("./planController.js");
+import express from "express";
+import { getPlanInquiry } from "./planController.js";
 
 const router = express.Router();
 
-router.post("/plan-inquiry", getPlanInquiry);
+// 👉 queda /api/plan
+router.post("/", getPlanInquiry);
 
-module.exports = router;
+export default router;
