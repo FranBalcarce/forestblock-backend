@@ -3,12 +3,9 @@ import axios from "axios";
 const CARBONMARK_BASE_URL = "https://v18.api.carbonmark.com";
 const CARBONMARK_API_KEY = process.env.CARBONMARK_API_KEY;
 
-/**
- * GET /api/carbon/carbonProjects
- */
 export const getCarbonProjects = async (req, res) => {
   try {
-    // 1) Traer prices con stock
+    // 1️⃣ Traer prices con supply > 0
     const pricesRes = await axios.get(`${CARBONMARK_BASE_URL}/prices`, {
       params: { minSupply: 1 },
       headers: {
@@ -16,13 +13,13 @@ export const getCarbonProjects = async (req, res) => {
       },
     });
 
-    const listings = pricesRes.data?.items ?? [];
+    const listings = pricesRes.data?.items || [];
 
     if (!listings.length) {
       return res.json({ items: [] });
     }
 
-    // 2) Project IDs únicos
+    // 2️⃣ Project IDs únicos
     const projectIds = [
       ...new Set(listings.map((l) => l?.creditId?.projectId).filter(Boolean)),
     ];
@@ -31,22 +28,20 @@ export const getCarbonProjects = async (req, res) => {
       return res.json({ items: [] });
     }
 
-    // 3) Traer proyectos
+    // 3️⃣ Traer proyectos
     const projectsRes = await axios.get(`${CARBONMARK_BASE_URL}/projects`, {
-      params: {
-        projectIds: projectIds.join(","),
-      },
+      params: { projectIds: projectIds.join(",") },
       headers: {
         Authorization: `Bearer ${CARBONMARK_API_KEY}`,
       },
     });
 
     return res.json({
-      items: projectsRes.data?.items ?? [],
+      items: projectsRes.data?.items || [],
     });
   } catch (error) {
     console.error(
-      "CarbonProjects error:",
+      "❌ Carbon projects error:",
       error?.response?.data || error.message,
     );
     return res.status(500).json({
@@ -55,9 +50,6 @@ export const getCarbonProjects = async (req, res) => {
   }
 };
 
-/**
- * GET /api/carbon/prices
- */
 export const getPrices = async (req, res) => {
   try {
     const response = await axios.get(`${CARBONMARK_BASE_URL}/prices`, {
@@ -68,10 +60,10 @@ export const getPrices = async (req, res) => {
     });
 
     return res.json({
-      items: response.data?.items ?? [],
+      items: response.data?.items || [],
     });
   } catch (error) {
-    console.error("Prices error:", error?.response?.data || error.message);
+    console.error("❌ Prices error:", error?.response?.data || error.message);
     return res.status(500).json({
       error: "Failed to fetch prices",
     });
