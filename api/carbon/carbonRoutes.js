@@ -3,7 +3,14 @@ const { getCarbonProjects, getPrices } = require("./carbonController");
 
 const router = express.Router();
 
+/**
+ * GET /api/carbon/carbonProjects
+ */
 router.get("/carbonProjects", getCarbonProjects);
+
+/**
+ * GET /api/carbon/prices
+ */
 router.get("/prices", getPrices);
 
 module.exports = router;
