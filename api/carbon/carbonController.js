@@ -1,55 +1,71 @@
-// api/carbon/carbonController.js
 import axios from "axios";
 
 const CARBONMARK_BASE = "https://v18.api.carbonmark.com";
+
+const carbonmark = axios.create({
+  baseURL: CARBONMARK_BASE,
+  headers: {
+    Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
+  },
+});
+
+/* =========================================================
+   GET MARKETPLACE PROJECTS WITH PRICES (CORRECT VERSION)
+========================================================= */
 
 export const getCarbonProjects = async (req, res) => {
   try {
     const { minSupply = 1 } = req.query;
 
-    const response = await axios.get(`${CARBONMARK_BASE}/prices`, {
-      headers: {
-        Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
-      },
-      params: {
-        minSupply,
-      },
-    });
+    /* 1️⃣ Traer proyectos */
+    const projectsRes = await carbonmark.get("/projects");
+    const projects = projectsRes.data?.items ?? [];
 
-    const prices = response.data || [];
+    const marketplaceProjects = [];
 
-    const projectsMap = {};
+    /* 2️⃣ Para cada proyecto, traer precios POR projectId */
+    for (const project of projects) {
+      const projectKey = project.key; // ej: "VCS-844"
 
-    for (const price of prices) {
-      const projectId = price?.listing?.creditId?.projectId;
-      if (!projectId) continue;
+      if (!projectKey) continue;
 
-      if (!projectsMap[projectId]) {
-        projectsMap[projectId] = {
-          projectId,
-          standard: price?.listing?.creditId?.standard ?? null,
-          minPrice: price.purchasePrice,
-          prices: [],
-        };
-      }
+      const pricesRes = await carbonmark.get("/prices", {
+        params: {
+          projectIds: projectKey,
+          minSupply,
+        },
+      });
 
-      projectsMap[projectId].prices.push(price);
-      projectsMap[projectId].minPrice = Math.min(
-        projectsMap[projectId].minPrice,
-        price.purchasePrice,
+      const prices = pricesRes.data ?? [];
+
+      if (!prices.length) continue;
+
+      /* 3️⃣ Calcular precio mínimo */
+      const minPrice = Math.min(
+        ...prices.map((p) => p.purchasePrice).filter(Boolean),
       );
+
+      marketplaceProjects.push({
+        ...project,
+        prices,
+        minPrice,
+      });
     }
 
+    /* 4️⃣ Respuesta limpia */
     return res.json({
-      count: Object.keys(projectsMap).length,
-      items: Object.values(projectsMap),
+      count: marketplaceProjects.length,
+      items: marketplaceProjects,
     });
   } catch (error) {
     console.error(
-      "❌ Error fetching carbon projects:",
+      "❌ Error building marketplace:",
       error.response?.data || error,
     );
-    return res.status(500).json({ message: "Error fetching carbon projects" });
+
+    return res.status(500).json({
+      message: "Error fetching marketplace projects",
+    });
   }
 };
 
