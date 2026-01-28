@@ -1,55 +1,73 @@
-export const getCarbonProjects = async (req, res) => {
+// api/carbon/carbonController.js
+import axios from "axios";
+
+const CARBONMARK_BASE = "https://v18.api.carbonmark.com";
+
+export const getMarketplaceProjects = async (req, res) => {
   try {
-    const response = await axios.get(`${CARBONMARK_BASE}/prices`, {
+    // 1️⃣ Traer prices con supply
+    const pricesRes = await axios.get(`${CARBONMARK_BASE}/prices`, {
       headers: {
         Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
       },
       params: {
-        minSupply: 100, // 🔑 recomendación Carbonmark
+        minSupply: 1,
       },
     });
 
-    const prices = response.data || [];
+    const prices = pricesRes.data || [];
 
-    const projectsMap = {};
+    // 2️⃣ Agrupar por projectId
+    const projectMap = {};
 
     for (const price of prices) {
-      // ✅ SOLO listings reales
-      if (
-        price.type !== "listing" ||
-        !price.purchasePrice ||
-        price.purchasePrice <= 0 ||
-        price.supply <= 0
-      ) {
-        continue;
-      }
-
       const projectId = price?.listing?.creditId?.projectId;
       if (!projectId) continue;
 
-      if (!projectsMap[projectId]) {
-        projectsMap[projectId] = {
+      if (!projectMap[projectId]) {
+        projectMap[projectId] = {
           projectId,
-          standard: price.listing.creditId.standard,
           minPrice: price.purchasePrice,
-          prices: [],
+          listings: [],
         };
       }
 
-      projectsMap[projectId].prices.push(price);
-      projectsMap[projectId].minPrice = Math.min(
-        projectsMap[projectId].minPrice,
+      projectMap[projectId].listings.push(price);
+      projectMap[projectId].minPrice = Math.min(
+        projectMap[projectId].minPrice,
         price.purchasePrice,
       );
     }
 
-    return res.json({
-      count: Object.keys(projectsMap).length,
-      items: Object.values(projectsMap),
+    const projectIds = Object.keys(projectMap);
+
+    // 3️⃣ Traer SOLO esos proyectos
+    const projectsRes = await axios.get(`${CARBONMARK_BASE}/carbonProjects`, {
+      headers: {
+        Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
+      },
+      params: {
+        projectIds: projectIds.join(","),
+      },
     });
-  } catch (error) {
-    console.error("❌ Error fetching carbon projects:", error);
-    return res.status(500).json({ message: "Error fetching carbon projects" });
+
+    const projects = projectsRes.data?.items || [];
+
+    // 4️⃣ Merge proyecto + price
+    const marketplaceProjects = projects.map((project) => ({
+      ...project,
+      minPrice: projectMap[project.projectID]?.minPrice ?? null,
+      listings: projectMap[project.projectID]?.listings ?? [],
+      hasSupply: true,
+    }));
+
+    return res.json({
+      count: marketplaceProjects.length,
+      items: marketplaceProjects,
+    });
+  } catch (err) {
+    console.error("❌ Marketplace error:", err.response?.data || err);
+    res.status(500).json({ error: "Marketplace fetch failed" });
   }
 };
 
