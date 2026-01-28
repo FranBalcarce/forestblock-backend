@@ -1,9 +1,9 @@
 import express from "express";
-import { getCarbonProjects } from "./carbonController.js";
+import { getMarketplaceProjects } from "./carbonController.js";
 
 const router = express.Router();
 
-router.get("/carbonProjects", getCarbonProjects);
+router.get("/marketplace", getMarketplaceProjects);
 
 export default router;
 
