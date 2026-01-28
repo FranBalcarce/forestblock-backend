@@ -19,7 +19,7 @@ export const getCarbonProjects = async (req, res) => {
         price.type !== "listing" ||
         !price.purchasePrice ||
         price.purchasePrice <= 0 ||
-        price.supply <= 0
+        price.supply > 100
       ) {
         continue;
       }
