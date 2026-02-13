@@ -24,7 +24,17 @@ app.set("trust proxy", 1);
 connectDB();
 
 /* ================= MIDDLEWARES ================= */
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "http://localhost:3000",
+      "https://forestblock.tech",
+      "https://www.forestblock.tech",
+    ],
+    credentials: true,
+  }),
+);
+
 app.use(helmet());
 app.use(bodyParser.json());
 
