@@ -1,11 +1,12 @@
-// api/carbon/carbonController.js
 import axios from "axios";
 
 const CARBONMARK_BASE = "https://v18.api.carbonmark.com";
 
 export const getMarketplaceProjects = async (req, res) => {
   try {
-    // 1️⃣ Traer prices con supply
+    /* -----------------------------
+       1️⃣ Prices con supply
+    ------------------------------*/
     const pricesRes = await axios.get(`${CARBONMARK_BASE}/prices`, {
       headers: {
         Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
@@ -15,51 +16,90 @@ export const getMarketplaceProjects = async (req, res) => {
       },
     });
 
-    const prices = pricesRes.data || [];
+    const prices = pricesRes.data?.items ?? pricesRes.data ?? [];
 
-    // 2️⃣ Agrupar por projectId
+    /* -----------------------------
+       2️⃣ Agrupar por registry key
+    ------------------------------*/
     const projectMap = {};
 
     for (const price of prices) {
-      const projectId = price?.listing?.creditId?.projectId;
-      if (!projectId) continue;
+      const registryKey = price?.listing?.creditId?.projectId;
+      if (!registryKey) continue;
 
-      if (!projectMap[projectId]) {
-        projectMap[projectId] = {
-          projectId,
+      if (!projectMap[registryKey]) {
+        projectMap[registryKey] = {
           minPrice: price.purchasePrice,
           listings: [],
         };
       }
 
-      projectMap[projectId].listings.push(price);
-      projectMap[projectId].minPrice = Math.min(
-        projectMap[projectId].minPrice,
+      projectMap[registryKey].listings.push(price);
+
+      projectMap[registryKey].minPrice = Math.min(
+        projectMap[registryKey].minPrice,
         price.purchasePrice,
       );
     }
 
-    const projectIds = Object.keys(projectMap);
+    const registryKeys = Object.keys(projectMap);
 
-    // 3️⃣ Traer SOLO esos proyectos
+    if (!registryKeys.length) {
+      return res.json({ count: 0, items: [] });
+    }
+
+    /* -----------------------------
+       3️⃣ Traer proyectos completos
+    ------------------------------*/
     const projectsRes = await axios.get(`${CARBONMARK_BASE}/carbonProjects`, {
       headers: {
         Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
       },
-      params: {
-        projectIds: projectIds.join(","),
-      },
     });
 
-    const projects = projectsRes.data?.items || [];
+    const projects = projectsRes.data?.items ?? [];
 
-    // 4️⃣ Merge proyecto + price
-    const marketplaceProjects = projects.map((project) => ({
-      ...project,
-      minPrice: projectMap[project.projectID]?.minPrice ?? null,
-      listings: projectMap[project.projectID]?.listings ?? [],
-      hasSupply: true,
-    }));
+    /* -----------------------------
+       4️⃣ Merge completo correcto
+    ------------------------------*/
+    const marketplaceProjects = projects
+      .filter((p) => registryKeys.includes(p.key))
+      .map((project) => {
+        const data = projectMap[project.key];
+        if (!data) return null;
+
+        return {
+          key: project.key,
+          projectID: project.projectID,
+
+          name: project.name,
+          registry: project.registry,
+          country: project.country,
+          region: project.region,
+
+          description: project.description,
+          short_description: project.short_description,
+          long_description: project.long_description,
+
+          methodologies: project.methodologies,
+          vintages: project.vintages,
+          sustainableDevelopmentGoals: project.sustainableDevelopmentGoals,
+
+          location: project.location,
+          url: project.url,
+
+          image: project.images?.[0]?.url || project.image || null,
+
+          minPrice: Number(data.minPrice),
+          displayPrice: Number(data.minPrice).toFixed(2),
+          availableSupply: data.listings.reduce(
+            (acc, l) => acc + Number(l.supply || 0),
+            0,
+          ),
+          hasSupply: true,
+        };
+      })
+      .filter(Boolean);
 
     return res.json({
       count: marketplaceProjects.length,
