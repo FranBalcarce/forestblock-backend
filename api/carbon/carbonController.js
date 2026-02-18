@@ -5,7 +5,7 @@ const CARBONMARK_BASE = "https://v18.api.carbonmark.com";
 
 export const getMarketplaceProjects = async (req, res) => {
   try {
-    /* 1️⃣ TRAER PRICES CON SUPPLY */
+    // 1️⃣ Traer prices con supply
     const pricesRes = await axios.get(`${CARBONMARK_BASE}/prices`, {
       headers: {
         Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
@@ -15,56 +15,62 @@ export const getMarketplaceProjects = async (req, res) => {
       },
     });
 
-    const prices = pricesRes.data?.items ?? pricesRes.data ?? [];
+    const prices = pricesRes.data?.items || pricesRes.data || [];
 
     if (!prices.length) {
       return res.json({ count: 0, items: [] });
     }
 
-    /* 2️⃣ AGRUPAR POR PROJECT KEY (VCS-XXX) */
-    const cheapestMap = {};
+    // 2️⃣ Agrupar por registry key (VCS-XXX)
+    const projectMap = {};
 
     for (const price of prices) {
-      const projectKey = price?.listing?.creditId?.projectId;
+      // 🔥 ESTA es la forma correcta en v18
+      const projectKey = price?.credit?.project?.key;
+
       if (!projectKey) continue;
 
-      if (
-        !cheapestMap[projectKey] ||
-        price.purchasePrice < cheapestMap[projectKey].purchasePrice
-      ) {
-        cheapestMap[projectKey] = price;
+      if (!projectMap[projectKey]) {
+        projectMap[projectKey] = {
+          key: projectKey,
+          minPrice: price.purchasePrice,
+          listings: [],
+        };
       }
+
+      projectMap[projectKey].listings.push(price);
+
+      projectMap[projectKey].minPrice = Math.min(
+        projectMap[projectKey].minPrice,
+        price.purchasePrice,
+      );
     }
 
-    /* 3️⃣ TRAER TODOS LOS PROYECTOS */
+    const projectKeys = Object.keys(projectMap);
+
+    if (!projectKeys.length) {
+      return res.json({ count: 0, items: [] });
+    }
+
+    // 3️⃣ Traer proyectos
     const projectsRes = await axios.get(`${CARBONMARK_BASE}/carbonProjects`, {
       headers: {
         Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
       },
+      params: {
+        keys: projectKeys.join(","), // 🔥 en v18 es keys, no projectIds
+      },
     });
 
-    const projects =
-      projectsRes.data?.items ??
-      projectsRes.data?.data ??
-      projectsRes.data ??
-      [];
+    const projects = projectsRes.data?.items || [];
 
-    /* 4️⃣ MERGE PROYECTO + PRECIO */
-    const marketplaceProjects = projects
-      .map((project) => {
-        const listing = cheapestMap[project.key]; // 🔥 usamos project.key (VCS-XXX)
-
-        if (!listing) return null;
-
-        return {
-          ...project,
-          minPrice: listing.purchasePrice,
-          displayPrice: Number(listing.purchasePrice).toFixed(2),
-          availableSupply: listing.supply,
-          hasSupply: true,
-        };
-      })
-      .filter(Boolean);
+    // 4️⃣ Merge proyecto + price
+    const marketplaceProjects = projects.map((project) => ({
+      ...project,
+      minPrice: projectMap[project.key]?.minPrice ?? null,
+      listings: projectMap[project.key]?.listings ?? [],
+      hasSupply: true,
+    }));
 
     return res.json({
       count: marketplaceProjects.length,
