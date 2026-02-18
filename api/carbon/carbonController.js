@@ -5,10 +5,7 @@ const CARBONMARK_BASE = "https://v18.api.carbonmark.com";
 
 export const getMarketplaceProjects = async (req, res) => {
   try {
-    /* =========================================
-       1️⃣ Traer prices con supply > 0
-    ========================================= */
-
+    // 1️⃣ Traer prices con supply
     const pricesRes = await axios.get(`${CARBONMARK_BASE}/prices`, {
       headers: {
         Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
@@ -20,67 +17,49 @@ export const getMarketplaceProjects = async (req, res) => {
 
     const prices = pricesRes.data || [];
 
-    if (!prices.length) {
-      return res.json({ count: 0, items: [] });
-    }
-
-    /* =========================================
-       2️⃣ Agrupar por REGISTRY KEY (VCS-XXX)
-    ========================================= */
-
+    // 2️⃣ Agrupar por projectId
     const projectMap = {};
 
     for (const price of prices) {
-      const registryKey = price?.listing?.creditId?.projectId;
+      const projectId = price?.listing?.creditId?.projectId;
+      if (!projectId) continue;
 
-      if (!registryKey) continue;
-
-      if (!projectMap[registryKey]) {
-        projectMap[registryKey] = {
-          registryKey,
+      if (!projectMap[projectId]) {
+        projectMap[projectId] = {
+          projectId,
           minPrice: price.purchasePrice,
           listings: [],
         };
       }
 
-      projectMap[registryKey].listings.push(price);
-
-      projectMap[registryKey].minPrice = Math.min(
-        projectMap[registryKey].minPrice,
+      projectMap[projectId].listings.push(price);
+      projectMap[projectId].minPrice = Math.min(
+        projectMap[projectId].minPrice,
         price.purchasePrice,
       );
     }
 
-    const registryKeysWithSupply = Object.keys(projectMap);
+    const projectIds = Object.keys(projectMap);
 
-    /* =========================================
-       3️⃣ Traer TODOS los proyectos
-    ========================================= */
-
+    // 3️⃣ Traer SOLO esos proyectos
     const projectsRes = await axios.get(`${CARBONMARK_BASE}/carbonProjects`, {
       headers: {
         Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
+      },
+      params: {
+        projectIds: projectIds.join(","),
       },
     });
 
     const projects = projectsRes.data?.items || [];
 
-    if (!projects.length) {
-      return res.json({ count: 0, items: [] });
-    }
-
-    /* =========================================
-       4️⃣ Filtrar por project.key (NO projectID)
-    ========================================= */
-
-    const marketplaceProjects = projects
-      .filter((project) => registryKeysWithSupply.includes(project.key))
-      .map((project) => ({
-        ...project,
-        minPrice: projectMap[project.key]?.minPrice ?? null,
-        listings: projectMap[project.key]?.listings ?? [],
-        hasSupply: true,
-      }));
+    // 4️⃣ Merge proyecto + price
+    const marketplaceProjects = projects.map((project) => ({
+      ...project,
+      minPrice: projectMap[project.projectID]?.minPrice ?? null,
+      listings: projectMap[project.projectID]?.listings ?? [],
+      hasSupply: true,
+    }));
 
     return res.json({
       count: marketplaceProjects.length,
