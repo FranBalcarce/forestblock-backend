@@ -17,49 +17,55 @@ export const getMarketplaceProjects = async (req, res) => {
 
     const prices = pricesRes.data || [];
 
-    // 2️⃣ Agrupar por projectId
+    if (!prices.length) {
+      return res.json({ count: 0, items: [] });
+    }
+
+    // 2️⃣ Agrupar por registry key (VCS-XXX)
     const projectMap = {};
 
     for (const price of prices) {
-      const projectId = price?.listing?.creditId?.projectId;
-      if (!projectId) continue;
+      const registryKey = price?.listing?.creditId?.projectId;
+      if (!registryKey) continue;
 
-      if (!projectMap[projectId]) {
-        projectMap[projectId] = {
-          projectId,
+      if (!projectMap[registryKey]) {
+        projectMap[registryKey] = {
           minPrice: price.purchasePrice,
           listings: [],
         };
       }
 
-      projectMap[projectId].listings.push(price);
-      projectMap[projectId].minPrice = Math.min(
-        projectMap[projectId].minPrice,
+      projectMap[registryKey].listings.push(price);
+
+      projectMap[registryKey].minPrice = Math.min(
+        projectMap[registryKey].minPrice,
         price.purchasePrice,
       );
     }
 
-    const projectIds = Object.keys(projectMap);
+    const registryKeys = Object.keys(projectMap);
 
-    // 3️⃣ Traer SOLO esos proyectos
+    // 3️⃣ Traer TODOS los proyectos
     const projectsRes = await axios.get(`${CARBONMARK_BASE}/carbonProjects`, {
       headers: {
         Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
-      },
-      params: {
-        projectIds: projectIds.join(","),
       },
     });
 
     const projects = projectsRes.data?.items || [];
 
-    // 4️⃣ Merge proyecto + price
-    const marketplaceProjects = projects.map((project) => ({
-      ...project,
-      minPrice: projectMap[project.projectID]?.minPrice ?? null,
-      listings: projectMap[project.projectID]?.listings ?? [],
-      hasSupply: true,
-    }));
+    // 4️⃣ Merge usando project.key (NO projectID)
+    const marketplaceProjects = projects
+      .filter((project) => registryKeys.includes(project.key))
+      .map((project) => ({
+        ...project,
+        minPrice: projectMap[project.key]?.minPrice ?? null,
+        displayPrice: projectMap[project.key]?.minPrice
+          ? Number(projectMap[project.key].minPrice).toFixed(2)
+          : "0.00",
+        listings: projectMap[project.key]?.listings ?? [],
+        hasSupply: true,
+      }));
 
     return res.json({
       count: marketplaceProjects.length,
@@ -70,6 +76,79 @@ export const getMarketplaceProjects = async (req, res) => {
     res.status(500).json({ error: "Marketplace fetch failed" });
   }
 };
+
+// // api/carbon/carbonController.js
+// import axios from "axios";
+
+// const CARBONMARK_BASE = "https://v18.api.carbonmark.com";
+
+// export const getMarketplaceProjects = async (req, res) => {
+//   try {
+//     // 1️⃣ Traer prices con supply
+//     const pricesRes = await axios.get(`${CARBONMARK_BASE}/prices`, {
+//       headers: {
+//         Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
+//       },
+//       params: {
+//         minSupply: 1,
+//       },
+//     });
+
+//     const prices = pricesRes.data || [];
+
+//     // 2️⃣ Agrupar por projectId
+//     const projectMap = {};
+
+//     for (const price of prices) {
+//       const projectId = price?.listing?.creditId?.projectId;
+//       if (!projectId) continue;
+
+//       if (!projectMap[projectId]) {
+//         projectMap[projectId] = {
+//           projectId,
+//           minPrice: price.purchasePrice,
+//           listings: [],
+//         };
+//       }
+
+//       projectMap[projectId].listings.push(price);
+//       projectMap[projectId].minPrice = Math.min(
+//         projectMap[projectId].minPrice,
+//         price.purchasePrice,
+//       );
+//     }
+
+//     const projectIds = Object.keys(projectMap);
+
+//     // 3️⃣ Traer SOLO esos proyectos
+//     const projectsRes = await axios.get(`${CARBONMARK_BASE}/carbonProjects`, {
+//       headers: {
+//         Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
+//       },
+//       params: {
+//         projectIds: projectIds.join(","),
+//       },
+//     });
+
+//     const projects = projectsRes.data?.items || [];
+
+//     // 4️⃣ Merge proyecto + price
+//     const marketplaceProjects = projects.map((project) => ({
+//       ...project,
+//       minPrice: projectMap[project.projectID]?.minPrice ?? null,
+//       listings: projectMap[project.projectID]?.listings ?? [],
+//       hasSupply: true,
+//     }));
+
+//     return res.json({
+//       count: marketplaceProjects.length,
+//       items: marketplaceProjects,
+//     });
+//   } catch (err) {
+//     console.error("❌ Marketplace error:", err.response?.data || err);
+//     res.status(500).json({ error: "Marketplace fetch failed" });
+//   }
+// };
 
 // import axios from "axios";
 
