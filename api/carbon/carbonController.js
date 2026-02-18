@@ -5,7 +5,7 @@ const CARBONMARK_BASE = "https://v18.api.carbonmark.com";
 
 export const getMarketplaceProjects = async (req, res) => {
   try {
-    // 1️⃣ Traer prices con supply
+    /* 1️⃣ TRAER PRICES CON SUPPLY */
     const pricesRes = await axios.get(`${CARBONMARK_BASE}/prices`, {
       headers: {
         Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
@@ -15,57 +15,56 @@ export const getMarketplaceProjects = async (req, res) => {
       },
     });
 
-    const prices = pricesRes.data || [];
+    const prices = pricesRes.data?.items ?? pricesRes.data ?? [];
 
     if (!prices.length) {
       return res.json({ count: 0, items: [] });
     }
 
-    // 2️⃣ Agrupar por registry key (VCS-XXX)
-    const projectMap = {};
+    /* 2️⃣ AGRUPAR POR PROJECT KEY (VCS-XXX) */
+    const cheapestMap = {};
 
     for (const price of prices) {
-      const registryKey = price?.listing?.creditId?.projectId;
-      if (!registryKey) continue;
+      const projectKey = price?.listing?.creditId?.projectId;
+      if (!projectKey) continue;
 
-      if (!projectMap[registryKey]) {
-        projectMap[registryKey] = {
-          minPrice: price.purchasePrice,
-          listings: [],
-        };
+      if (
+        !cheapestMap[projectKey] ||
+        price.purchasePrice < cheapestMap[projectKey].purchasePrice
+      ) {
+        cheapestMap[projectKey] = price;
       }
-
-      projectMap[registryKey].listings.push(price);
-
-      projectMap[registryKey].minPrice = Math.min(
-        projectMap[registryKey].minPrice,
-        price.purchasePrice,
-      );
     }
 
-    const registryKeys = Object.keys(projectMap);
-
-    // 3️⃣ Traer TODOS los proyectos
+    /* 3️⃣ TRAER TODOS LOS PROYECTOS */
     const projectsRes = await axios.get(`${CARBONMARK_BASE}/carbonProjects`, {
       headers: {
         Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
       },
     });
 
-    const projects = projectsRes.data?.items || [];
+    const projects =
+      projectsRes.data?.items ??
+      projectsRes.data?.data ??
+      projectsRes.data ??
+      [];
 
-    // 4️⃣ Merge usando project.key (NO projectID)
+    /* 4️⃣ MERGE PROYECTO + PRECIO */
     const marketplaceProjects = projects
-      .filter((project) => registryKeys.includes(project.key))
-      .map((project) => ({
-        ...project,
-        minPrice: projectMap[project.key]?.minPrice ?? null,
-        displayPrice: projectMap[project.key]?.minPrice
-          ? Number(projectMap[project.key].minPrice).toFixed(2)
-          : "0.00",
-        listings: projectMap[project.key]?.listings ?? [],
-        hasSupply: true,
-      }));
+      .map((project) => {
+        const listing = cheapestMap[project.key]; // 🔥 usamos project.key (VCS-XXX)
+
+        if (!listing) return null;
+
+        return {
+          ...project,
+          minPrice: listing.purchasePrice,
+          displayPrice: Number(listing.purchasePrice).toFixed(2),
+          availableSupply: listing.supply,
+          hasSupply: true,
+        };
+      })
+      .filter(Boolean);
 
     return res.json({
       count: marketplaceProjects.length,
