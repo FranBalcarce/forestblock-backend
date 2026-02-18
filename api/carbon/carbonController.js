@@ -1,18 +1,32 @@
+// api/carbon/carbonController.js
 import axios from "axios";
 
 const CARBONMARK_BASE = "https://v18.api.carbonmark.com";
 
 export const getMarketplaceProjects = async (req, res) => {
   try {
-    /* 1️⃣ PRICES */
+    /* =========================================
+       1️⃣ Traer prices con supply > 0
+    ========================================= */
+
     const pricesRes = await axios.get(`${CARBONMARK_BASE}/prices`, {
       headers: {
         Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
       },
-      params: { minSupply: 1 },
+      params: {
+        minSupply: 1,
+      },
     });
 
-    const prices = pricesRes.data?.items ?? pricesRes.data ?? [];
+    const prices = pricesRes.data || [];
+
+    if (!prices.length) {
+      return res.json({ count: 0, items: [] });
+    }
+
+    /* =========================================
+       2️⃣ Agrupar por projectId
+    ========================================= */
 
     const projectMap = {};
 
@@ -22,6 +36,7 @@ export const getMarketplaceProjects = async (req, res) => {
 
       if (!projectMap[projectId]) {
         projectMap[projectId] = {
+          projectId,
           minPrice: price.purchasePrice,
           listings: [],
         };
@@ -34,58 +49,36 @@ export const getMarketplaceProjects = async (req, res) => {
       );
     }
 
-    const projectIds = Object.keys(projectMap);
-    if (!projectIds.length) {
-      return res.json({ count: 0, items: [] });
-    }
+    const projectIdsWithSupply = Object.keys(projectMap);
 
-    /* 2️⃣ PROJECTS */
+    /* =========================================
+       3️⃣ Traer TODOS los proyectos
+    ========================================= */
+
     const projectsRes = await axios.get(`${CARBONMARK_BASE}/carbonProjects`, {
       headers: {
         Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
       },
     });
 
-    const projects = projectsRes.data?.items ?? [];
+    const projects = projectsRes.data?.items || [];
 
-    /* 3️⃣ MERGE CORRECTO */
+    if (!projects.length) {
+      return res.json({ count: 0, items: [] });
+    }
+
+    /* =========================================
+       4️⃣ Filtrar SOLO los que tienen supply
+    ========================================= */
+
     const marketplaceProjects = projects
-      .filter((p) => projectIds.includes(String(p.projectID)))
-      .map((project) => {
-        const data = projectMap[String(project.projectID)];
-        if (!data) return null;
-
-        return {
-          key: project.key, // VCS-XXX (para tu frontend)
-          projectID: project.projectID,
-
-          name: project.name,
-          registry: project.registry,
-          country: project.country,
-          region: project.region,
-
-          description: project.description,
-          short_description: project.short_description,
-          long_description: project.long_description,
-
-          methodologies: project.methodologies,
-          vintages: project.vintages,
-          sustainableDevelopmentGoals: project.sustainableDevelopmentGoals,
-
-          location: project.location,
-          url: project.url,
-          images: project.images,
-
-          minPrice: Number(data.minPrice),
-          displayPrice: Number(data.minPrice).toFixed(2),
-          availableSupply: data.listings.reduce(
-            (acc, l) => acc + Number(l.supply || 0),
-            0,
-          ),
-          hasSupply: true,
-        };
-      })
-      .filter(Boolean);
+      .filter((project) => projectIdsWithSupply.includes(project.projectID))
+      .map((project) => ({
+        ...project,
+        minPrice: projectMap[project.projectID]?.minPrice ?? null,
+        listings: projectMap[project.projectID]?.listings ?? [],
+        hasSupply: true,
+      }));
 
     return res.json({
       count: marketplaceProjects.length,
