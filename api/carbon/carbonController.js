@@ -25,31 +25,33 @@ export const getMarketplaceProjects = async (req, res) => {
     }
 
     /* =========================================
-       2️⃣ Agrupar por projectId
+       2️⃣ Agrupar por REGISTRY KEY (VCS-XXX)
     ========================================= */
 
     const projectMap = {};
 
     for (const price of prices) {
-      const projectId = price?.listing?.creditId?.projectId;
-      if (!projectId) continue;
+      const registryKey = price?.listing?.creditId?.projectId;
 
-      if (!projectMap[projectId]) {
-        projectMap[projectId] = {
-          projectId,
+      if (!registryKey) continue;
+
+      if (!projectMap[registryKey]) {
+        projectMap[registryKey] = {
+          registryKey,
           minPrice: price.purchasePrice,
           listings: [],
         };
       }
 
-      projectMap[projectId].listings.push(price);
-      projectMap[projectId].minPrice = Math.min(
-        projectMap[projectId].minPrice,
+      projectMap[registryKey].listings.push(price);
+
+      projectMap[registryKey].minPrice = Math.min(
+        projectMap[registryKey].minPrice,
         price.purchasePrice,
       );
     }
 
-    const projectIdsWithSupply = Object.keys(projectMap);
+    const registryKeysWithSupply = Object.keys(projectMap);
 
     /* =========================================
        3️⃣ Traer TODOS los proyectos
@@ -68,15 +70,15 @@ export const getMarketplaceProjects = async (req, res) => {
     }
 
     /* =========================================
-       4️⃣ Filtrar SOLO los que tienen supply
+       4️⃣ Filtrar por project.key (NO projectID)
     ========================================= */
 
     const marketplaceProjects = projects
-      .filter((project) => projectIdsWithSupply.includes(project.projectID))
+      .filter((project) => registryKeysWithSupply.includes(project.key))
       .map((project) => ({
         ...project,
-        minPrice: projectMap[project.projectID]?.minPrice ?? null,
-        listings: projectMap[project.projectID]?.listings ?? [],
+        minPrice: projectMap[project.key]?.minPrice ?? null,
+        listings: projectMap[project.key]?.listings ?? [],
         hasSupply: true,
       }));
 
