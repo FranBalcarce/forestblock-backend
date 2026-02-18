@@ -20,10 +20,12 @@ export const getMarketplaceProjects = async (req, res) => {
     if (!prices.length) {
       return res.json({ count: 0, items: [] });
     }
+    console.log("PRICES RAW SAMPLE:");
+    console.log(JSON.stringify(prices[0], null, 2));
+    console.log("TOTAL PRICES:", prices.length);
 
     // 2️⃣ Agrupar por registry key (VCS-XXX)
     const projectMap = {};
-
     for (const price of prices) {
       const projectKey =
         price?.credit?.project?.key ||
@@ -36,7 +38,7 @@ export const getMarketplaceProjects = async (req, res) => {
       if (!projectMap[projectKey]) {
         projectMap[projectKey] = {
           key: projectKey,
-          minPrice: Number(price.purchasePrice),
+          minPrice: price.purchasePrice,
           listings: [],
         };
       }
@@ -45,7 +47,7 @@ export const getMarketplaceProjects = async (req, res) => {
 
       projectMap[projectKey].minPrice = Math.min(
         projectMap[projectKey].minPrice,
-        Number(price.purchasePrice),
+        price.purchasePrice,
       );
     }
 
@@ -55,43 +57,25 @@ export const getMarketplaceProjects = async (req, res) => {
       return res.json({ count: 0, items: [] });
     }
 
-    // 3️⃣ Traer proyectos usando keys (v18)
+    // 3️⃣ Traer proyectos
     const projectsRes = await axios.get(`${CARBONMARK_BASE}/carbonProjects`, {
       headers: {
         Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
       },
       params: {
-        keys: projectKeys.join(","), // 🔥 correcto para v18
+        keys: projectKeys.join(","), // 🔥 en v18 es keys, no projectIds
       },
     });
 
     const projects = projectsRes.data?.items || [];
 
-    if (!projects.length) {
-      return res.json({ count: 0, items: [] });
-    }
-
     // 4️⃣ Merge proyecto + price
-    const marketplaceProjects = projects
-      .map((project) => {
-        const mapEntry = projectMap[project.key];
-
-        if (!mapEntry) return null;
-
-        return {
-          ...project,
-
-          // 🔥 SIEMPRE número
-          minPrice: Number(mapEntry.minPrice),
-
-          // 🔥 listo para usar en frontend
-          displayPrice: Number(mapEntry.minPrice).toFixed(2),
-
-          listings: mapEntry.listings ?? [],
-          hasSupply: true,
-        };
-      })
-      .filter(Boolean); // 🔥 elimina null
+    const marketplaceProjects = projects.map((project) => ({
+      ...project,
+      minPrice: projectMap[project.key]?.minPrice ?? null,
+      listings: projectMap[project.key]?.listings ?? [],
+      hasSupply: true,
+    }));
 
     return res.json({
       count: marketplaceProjects.length,
