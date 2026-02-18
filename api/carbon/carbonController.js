@@ -20,13 +20,18 @@ export const getMarketplaceProjects = async (req, res) => {
     if (!prices.length) {
       return res.json({ count: 0, items: [] });
     }
+    console.log("PRICES RAW SAMPLE:");
+    console.log(JSON.stringify(prices[0], null, 2));
+    console.log("TOTAL PRICES:", prices.length);
 
     // 2️⃣ Agrupar por registry key (VCS-XXX)
     const projectMap = {};
-
     for (const price of prices) {
-      // 🔥 ESTA es la forma correcta en v18
-      const projectKey = price?.credit?.project?.key;
+      const projectKey =
+        price?.credit?.project?.key ||
+        price?.project?.key ||
+        price?.projectKey ||
+        price?.listing?.creditId?.projectId;
 
       if (!projectKey) continue;
 
