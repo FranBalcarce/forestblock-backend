@@ -24,7 +24,8 @@ export const getMarketplaceProjects = async (req, res) => {
       ? pricesRes.data
       : pricesRes.data?.items || [];
 
-    console.log("TOTAL PRICES:", prices.length);
+    console.log("FIRST PRICE OBJECT:");
+    console.log(JSON.stringify(prices[0], null, 2));
 
     if (!prices.length) {
       return res.json({ count: 0, items: [] });
