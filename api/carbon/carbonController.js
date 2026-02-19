@@ -2,20 +2,21 @@
 import axios from "axios";
 
 const CARBONMARK_BASE = "https://v18.api.carbonmark.com";
-console.log("API KEY:", process.env.CARBONMARK_API_KEY);
-console.log("PRICES RAW:", JSON.stringify(pricesRes.data, null, 2));
 
 export const getMarketplaceProjects = async (req, res) => {
   try {
+    console.log("API KEY:", process.env.CARBONMARK_API_KEY);
+
     const pricesRes = await axios.get(`${CARBONMARK_BASE}/prices`, {
       headers: {
         Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
       },
       params: {
-        minSupply: 1,
-        limit: 200,
+        limit: 10,
       },
     });
+
+    console.log("PRICES RAW:", JSON.stringify(pricesRes.data, null, 2));
 
     const prices = pricesRes.data?.items || [];
 
