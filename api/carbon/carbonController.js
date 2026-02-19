@@ -69,12 +69,16 @@ export const getMarketplaceProjects = async (req, res) => {
 
     const projects = projectsRes.data?.items || [];
 
-    const marketplaceProjects = projects.map((project) => ({
-      ...project,
-      minPrice: projectMap[project.key]?.minPrice ?? null,
-      listings: projectMap[project.key]?.listings ?? [],
-      hasSupply: Boolean(projectMap[project.key]),
-    }));
+    const marketplaceProjects = projects.map((project) => {
+      const projectId = project.id || project.key;
+
+      return {
+        ...project,
+        minPrice: projectMap[projectId]?.minPrice ?? null,
+        listings: projectMap[projectId]?.listings ?? [],
+        hasSupply: Boolean(projectMap[projectId]),
+      };
+    });
 
     return res.json({
       count: marketplaceProjects.length,
