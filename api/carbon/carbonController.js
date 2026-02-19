@@ -1,12 +1,10 @@
+// api/carbon/carbonController.js
 import axios from "axios";
 
 const CARBONMARK_BASE = "https://v18.api.carbonmark.com";
 
 export const getMarketplaceProjects = async (req, res) => {
   try {
-    // =========================
-    // 1️⃣ Traer listings (/prices)
-    // =========================
     const pricesRes = await axios.get(`${CARBONMARK_BASE}/prices`, {
       headers: {
         Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
@@ -17,7 +15,6 @@ export const getMarketplaceProjects = async (req, res) => {
       },
     });
 
-    // v18 devuelve array directo
     const prices = Array.isArray(pricesRes.data)
       ? pricesRes.data
       : pricesRes.data?.items || [];
@@ -26,34 +23,30 @@ export const getMarketplaceProjects = async (req, res) => {
       return res.json({ count: 0, items: [] });
     }
 
-    // =========================
-    // 2️⃣ Agrupar por projectKey
-    // =========================
     const projectMap = {};
 
     for (const price of prices) {
-      // En v18 puede venir como projectKey o projectId
-      const projectKey =
-        price?.projectKey || price?.projectId || price?.project?.key;
+      // ✅ CORRECCIÓN REAL
+      const projectId = price?.token?.projectId;
 
-      if (!projectKey) continue;
+      if (!projectId) continue;
 
-      if (!projectMap[projectKey]) {
-        projectMap[projectKey] = {
+      if (!projectMap[projectId]) {
+        projectMap[projectId] = {
           minPrice: price.price ?? price.purchasePrice ?? null,
           listings: [],
         };
       }
 
-      projectMap[projectKey].listings.push(price);
+      projectMap[projectId].listings.push(price);
 
-      const currentPrice = price.price ?? price.purchasePrice ?? null;
+      const currentPrice = price.price ?? price.purchasePrice;
 
-      if (currentPrice !== null) {
-        projectMap[projectKey].minPrice =
-          projectMap[projectKey].minPrice === null
+      if (currentPrice) {
+        projectMap[projectId].minPrice =
+          projectMap[projectId].minPrice === null
             ? currentPrice
-            : Math.min(projectMap[projectKey].minPrice, currentPrice);
+            : Math.min(projectMap[projectId].minPrice, currentPrice);
       }
     }
 
@@ -63,12 +56,9 @@ export const getMarketplaceProjects = async (req, res) => {
       return res.json({ count: 0, items: [] });
     }
 
-    // =========================
-    // 3️⃣ Traer carbonProjects
-    // =========================
     const searchParams = new URLSearchParams();
-    for (const key of projectKeys) {
-      searchParams.append("keys", key);
+    for (const k of projectKeys) {
+      searchParams.append("keys", k);
     }
 
     const projectsRes = await axios.get(
@@ -82,16 +72,8 @@ export const getMarketplaceProjects = async (req, res) => {
 
     const projects = projectsRes.data?.items || [];
 
-    if (!projects.length) {
-      return res.json({ count: 0, items: [] });
-    }
-
-    // =========================
-    // 4️⃣ Cruzar projects + prices
-    // =========================
     const marketplaceProjects = projects.map((project) => {
-      const key = project?.key;
-      const map = key ? projectMap[key] : null;
+      const map = projectMap[project.key];
 
       return {
         ...project,
@@ -111,7 +93,6 @@ export const getMarketplaceProjects = async (req, res) => {
       err?.response?.status,
       err?.response?.data || err?.message || err,
     );
-
     return res.status(500).json({ error: "Marketplace fetch failed" });
   }
 };
