@@ -14,6 +14,7 @@ export const getMarketplaceProjects = async (req, res) => {
         limit: 200,
       },
     });
+    console.log("🔥 MARKETPLACE CONTROLLER EXECUTING");
 
     const prices = Array.isArray(pricesRes.data)
       ? pricesRes.data
