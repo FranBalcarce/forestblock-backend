@@ -93,6 +93,9 @@ export const getMarketplaceProjects = async (req, res) => {
       err?.response?.status,
       err?.response?.data || err?.message || err,
     );
+    console.log("SAMPLE PRICE projectId:", prices[0]?.projectId);
+    console.log("SAMPLE PROJECT key:", projects[0]?.key);
+
     return res.status(500).json({ error: "Marketplace fetch failed" });
   }
 };
