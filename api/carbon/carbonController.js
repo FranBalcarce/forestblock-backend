@@ -83,4 +83,3 @@ export const getMarketplaceProjects = async (req, res) => {
     res.status(500).json({ error: "Marketplace fetch failed" });
   }
 };
-asdad;
