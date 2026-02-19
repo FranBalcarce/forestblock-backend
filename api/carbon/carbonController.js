@@ -22,6 +22,10 @@ export const getMarketplaceProjects = async (req, res) => {
     if (!prices.length) {
       return res.json({ count: 0, items: [] });
     }
+    console.log("=== DEBUG PRICES ===");
+    console.log("TOTAL PRICES:", prices.length);
+    console.log("FIRST PRICE SAMPLE:", prices[0]);
+    console.log("====================");
 
     // 2️⃣ Agrupar por projectId REAL (v18)
     const projectMap = {};
