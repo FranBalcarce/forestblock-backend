@@ -2,6 +2,8 @@
 import axios from "axios";
 
 const CARBONMARK_BASE = "https://v18.api.carbonmark.com";
+console.log("API KEY:", process.env.CARBONMARK_API_KEY);
+console.log("PRICES RAW:", JSON.stringify(pricesRes.data, null, 2));
 
 export const getMarketplaceProjects = async (req, res) => {
   try {
