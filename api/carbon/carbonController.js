@@ -31,7 +31,9 @@ export const getMarketplaceProjects = async (req, res) => {
     const projectMap = {};
 
     for (const price of prices) {
-      const projectId = price?.listing?.credit?.projectId;
+      console.log("PRICE PROJECT ID:", price.projectId);
+
+      const projectId = price.projectId;
 
       if (!projectId) continue;
 
