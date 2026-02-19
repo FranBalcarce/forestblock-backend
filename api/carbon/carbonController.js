@@ -14,8 +14,7 @@ export const getMarketplaceProjects = async (req, res) => {
         Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
       },
       params: {
-        minSupply: 1,
-        limit: 200,
+        limit: 10,
       },
     });
 
