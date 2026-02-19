@@ -1,10 +1,12 @@
-// api/carbon/carbonController.js
 import axios from "axios";
 
 const CARBONMARK_BASE = "https://v18.api.carbonmark.com";
 
 export const getMarketplaceProjects = async (req, res) => {
   try {
+    // =========================
+    // 1️⃣ Traer listings (/prices)
+    // =========================
     const pricesRes = await axios.get(`${CARBONMARK_BASE}/prices`, {
       headers: {
         Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
@@ -15,53 +17,59 @@ export const getMarketplaceProjects = async (req, res) => {
       },
     });
 
-    // v18 /prices devuelve array directo
+    // v18 devuelve array directo
     const prices = Array.isArray(pricesRes.data)
       ? pricesRes.data
       : pricesRes.data?.items || [];
-
-    console.log("[marketplace] prices:", prices.length);
 
     if (!prices.length) {
       return res.json({ count: 0, items: [] });
     }
 
-    // Agrupar por projectId (VCS-xxx)
+    // =========================
+    // 2️⃣ Agrupar por projectKey
+    // =========================
     const projectMap = {};
 
     for (const price of prices) {
-      const projectId = price?.projectId;
+      // En v18 puede venir como projectKey o projectId
+      const projectKey =
+        price?.projectKey || price?.projectId || price?.project?.key;
 
-      if (!projectId) continue;
+      if (!projectKey) continue;
 
-      if (!projectMap[projectId]) {
-        projectMap[projectId] = {
+      if (!projectMap[projectKey]) {
+        projectMap[projectKey] = {
           minPrice: price.price ?? price.purchasePrice ?? null,
           listings: [],
         };
       }
 
-      projectMap[projectId].listings.push(price);
+      projectMap[projectKey].listings.push(price);
 
-      if (price.price) {
-        projectMap[projectId].minPrice =
-          projectMap[projectId].minPrice === null
-            ? price.price
-            : Math.min(projectMap[projectId].minPrice, price.price);
+      const currentPrice = price.price ?? price.purchasePrice ?? null;
+
+      if (currentPrice !== null) {
+        projectMap[projectKey].minPrice =
+          projectMap[projectKey].minPrice === null
+            ? currentPrice
+            : Math.min(projectMap[projectKey].minPrice, currentPrice);
       }
     }
 
     const projectKeys = Object.keys(projectMap);
-    console.log("[marketplace] unique projectIds:", projectKeys.length);
-    console.log("[marketplace] sample:", projectKeys.slice(0, 10));
 
     if (!projectKeys.length) {
       return res.json({ count: 0, items: [] });
     }
 
-    // ✅ IMPORTANTE: serializar keys repetido (keys=...&keys=...)
+    // =========================
+    // 3️⃣ Traer carbonProjects
+    // =========================
     const searchParams = new URLSearchParams();
-    for (const k of projectKeys) searchParams.append("keys", k);
+    for (const key of projectKeys) {
+      searchParams.append("keys", key);
+    }
 
     const projectsRes = await axios.get(
       `${CARBONMARK_BASE}/carbonProjects?${searchParams.toString()}`,
@@ -73,15 +81,15 @@ export const getMarketplaceProjects = async (req, res) => {
     );
 
     const projects = projectsRes.data?.items || [];
-    console.log("[marketplace] carbonProjects returned:", projects.length);
 
     if (!projects.length) {
-      // si acá te da 0, el problema era 100% el query de keys
       return res.json({ count: 0, items: [] });
     }
 
+    // =========================
+    // 4️⃣ Cruzar projects + prices
+    // =========================
     const marketplaceProjects = projects.map((project) => {
-      // project.key suele ser "VCS-844"
       const key = project?.key;
       const map = key ? projectMap[key] : null;
 
@@ -93,9 +101,6 @@ export const getMarketplaceProjects = async (req, res) => {
       };
     });
 
-    const available = marketplaceProjects.filter((p) => p.hasSupply).length;
-    console.log("[marketplace] matched with supply:", available);
-
     return res.json({
       count: marketplaceProjects.length,
       items: marketplaceProjects,
@@ -106,6 +111,7 @@ export const getMarketplaceProjects = async (req, res) => {
       err?.response?.status,
       err?.response?.data || err?.message || err,
     );
+
     return res.status(500).json({ error: "Marketplace fetch failed" });
   }
 };
