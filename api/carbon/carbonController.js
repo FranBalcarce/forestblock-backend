@@ -30,27 +30,24 @@ export const getMarketplaceProjects = async (req, res) => {
     const projectMap = {};
 
     for (const price of prices) {
-      const projectId =
-        price?.projectId ||
-        price?.listing?.creditId?.projectId ||
-        price?.listing?.creditId?.projectID;
+      const projectId = price?.projectId;
 
       if (!projectId) continue;
 
       if (!projectMap[projectId]) {
         projectMap[projectId] = {
-          minPrice: price.purchasePrice,
+          minPrice: price.price ?? price.purchasePrice ?? null,
           listings: [],
         };
       }
 
       projectMap[projectId].listings.push(price);
 
-      if (typeof price.purchasePrice === "number") {
-        projectMap[projectId].minPrice = Math.min(
-          projectMap[projectId].minPrice,
-          price.purchasePrice,
-        );
+      if (price.price) {
+        projectMap[projectId].minPrice =
+          projectMap[projectId].minPrice === null
+            ? price.price
+            : Math.min(projectMap[projectId].minPrice, price.price);
       }
     }
 
