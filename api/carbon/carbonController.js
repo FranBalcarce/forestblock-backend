@@ -14,12 +14,13 @@ export const getMarketplaceProjects = async (req, res) => {
         limit: 200,
       },
     });
-    console.log("🔥 MARKETPLACE CONTROLLER EXECUTING");
-    console.log("SAMPLE PRICE OBJECT:", JSON.stringify(prices[0], null, 2));
 
     const prices = Array.isArray(pricesRes.data)
       ? pricesRes.data
       : pricesRes.data?.items || [];
+
+    console.log("🔥 SAMPLE PRICE OBJECT:");
+    console.log(JSON.stringify(prices[0], null, 2));
 
     if (!prices.length) {
       return res.json({ count: 0, items: [] });
