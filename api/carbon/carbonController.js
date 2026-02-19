@@ -18,7 +18,9 @@ export const getMarketplaceProjects = async (req, res) => {
 
     console.log("PRICES RAW:", JSON.stringify(pricesRes.data, null, 2));
 
-    const prices = pricesRes.data?.items || [];
+    const prices = Array.isArray(pricesRes.data)
+      ? pricesRes.data
+      : pricesRes.data?.items || [];
 
     console.log("TOTAL PRICES:", prices.length);
 
