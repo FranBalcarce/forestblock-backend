@@ -1,9 +1,13 @@
 import express from "express";
-import { getMarketplaceProjects } from "./carbonController.js";
+import { getMarketplaceProjects, getListingById } from "./carbonController.js";
 
 const router = express.Router();
 
+/* Marketplace principal */
 router.get("/marketplace", getMarketplaceProjects);
+
+/* Listing individual (checkout) */
+router.get("/listing/:id", getListingById);
 
 export default router;
 
