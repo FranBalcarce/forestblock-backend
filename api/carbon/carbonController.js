@@ -38,21 +38,20 @@ export const getMarketplaceProjects = async (req, res) => {
     /* =========================
        2️⃣ AGRUPAR POR PROJECT
     ========================= */
-
     const projectMap = {};
 
     for (const listing of availableListings) {
-      const projectId = listing.project?.id;
-      if (!projectId) continue;
+      const projectKey = listing.project?.key;
+      if (!projectKey) continue;
 
-      if (!projectMap[projectId]) {
-        projectMap[projectId] = {
+      if (!projectMap[projectKey]) {
+        projectMap[projectKey] = {
           minPrice: Number(listing.singleUnitPrice),
           listings: [],
         };
       }
 
-      projectMap[projectId].listings.push({
+      projectMap[projectKey].listings.push({
         ...listing,
         singleUnitPrice: Number(listing.singleUnitPrice),
         leftToSell: Number(listing.leftToSell),
@@ -60,8 +59,8 @@ export const getMarketplaceProjects = async (req, res) => {
 
       const price = Number(listing.singleUnitPrice);
       if (!isNaN(price)) {
-        projectMap[projectId].minPrice = Math.min(
-          projectMap[projectId].minPrice,
+        projectMap[projectKey].minPrice = Math.min(
+          projectMap[projectKey].minPrice,
           price,
         );
       }
@@ -92,13 +91,13 @@ export const getMarketplaceProjects = async (req, res) => {
     ========================= */
 
     const marketplaceProjects = projects
-      .filter((project) => projectMap[project.id]) // 🔥 usar project.id
+      .filter((project) => projectMap[project.key])
       .map((project) => {
-        const supplyData = projectMap[project.id];
+        const supplyData = projectMap[project.key];
 
         return {
           ...project,
-          key: project.id, // importante para tu frontend
+          key: project.key,
           minPrice: supplyData.minPrice,
           listings: supplyData.listings,
           hasSupply: true,
