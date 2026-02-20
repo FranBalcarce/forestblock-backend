@@ -91,16 +91,18 @@ export const getMarketplaceProjects = async (req, res) => {
        4️⃣ MERGE FINAL
     ========================= */
 
-    const marketplaceProjects = projects.map((project) => {
-      const supplyData = projectMap[project.key];
+    const marketplaceProjects = projects
+      .filter((project) => projectMap[project.key]) // 🔥 clave
+      .map((project) => {
+        const supplyData = projectMap[project.key];
 
-      return {
-        ...project, // 🔥 trae coverImage, description, geometry, etc
-        minPrice: supplyData?.minPrice ?? null,
-        listings: supplyData?.listings ?? [],
-        hasSupply: true,
-      };
-    });
+        return {
+          ...project,
+          minPrice: supplyData.minPrice,
+          listings: supplyData.listings,
+          hasSupply: true,
+        };
+      });
 
     return res.json({
       count: marketplaceProjects.length,
