@@ -1,13 +1,14 @@
+// api/carbon/carbonController.js
 import axios from "axios";
 
 const CARBONMARK_BASE =
   process.env.CARBONMARK_BASE_URL || "https://v18.api.carbonmark.com";
 
 export const getMarketplaceProjects = async (req, res) => {
-  console.log("🔥 MARKETPLACE CONTROLLER EXECUTING");
+  console.log("🔥 MARKETPLACE CONTROLLER (v18 listings)");
 
   try {
-    const pricesRes = await axios.get(`${CARBONMARK_BASE}/prices`, {
+    const listingsRes = await axios.get(`${CARBONMARK_BASE}/listings`, {
       headers: {
         Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
       },
@@ -16,80 +17,61 @@ export const getMarketplaceProjects = async (req, res) => {
       },
     });
 
-    const prices = Array.isArray(pricesRes.data)
-      ? pricesRes.data
-      : pricesRes.data?.items || [];
+    const listings = Array.isArray(listingsRes.data)
+      ? listingsRes.data
+      : listingsRes.data?.items || [];
 
-    if (!prices.length) {
+    if (!listings.length) {
       return res.json({ count: 0, items: [] });
     }
 
-    // 🔥 FILTRAR SUPPLY REAL
-    const availablePrices = prices.filter(
-      (p) => Number(p.supply) > 0 || Number(p.liquidSupply) > 0,
-    );
+    // ✅ Filtrar supply real
+    const availableListings = listings.filter((l) => Number(l.leftToSell) > 0);
 
-    if (!availablePrices.length) {
+    if (!availableListings.length) {
       return res.json({ count: 0, items: [] });
     }
 
+    // Agrupar por projectId
     const projectMap = {};
 
-    for (const price of availablePrices) {
-      const projectId =
-        price.projectId ||
-        price?.token?.projectId ||
-        price?.creditId?.projectId;
+    for (const listing of availableListings) {
+      const project = listing.project;
+      if (!project?.id) continue;
 
-      if (!projectId) continue;
+      const projectId = project.id;
 
       if (!projectMap[projectId]) {
         projectMap[projectId] = {
-          minPrice: null,
+          project,
+          minPrice: Number(listing.singleUnitPrice),
           listings: [],
         };
       }
 
-      projectMap[projectId].listings.push(price);
+      projectMap[projectId].listings.push({
+        ...listing,
+        leftToSell: Number(listing.leftToSell),
+        singleUnitPrice: Number(listing.singleUnitPrice),
+      });
 
-      const currentPrice = price.purchasePrice ?? price.baseUnitPrice;
+      const currentPrice = Number(listing.singleUnitPrice);
 
-      if (currentPrice) {
-        projectMap[projectId].minPrice =
-          projectMap[projectId].minPrice === null
-            ? currentPrice
-            : Math.min(projectMap[projectId].minPrice, currentPrice);
+      if (!isNaN(currentPrice)) {
+        projectMap[projectId].minPrice = Math.min(
+          projectMap[projectId].minPrice,
+          currentPrice,
+        );
       }
     }
 
-    const projectKeys = Object.keys(projectMap);
-
-    if (!projectKeys.length) {
-      return res.json({ count: 0, items: [] });
-    }
-
-    const searchParams = new URLSearchParams();
-    projectKeys.forEach((key) => searchParams.append("keys", key));
-
-    const projectsRes = await axios.get(
-      `${CARBONMARK_BASE}/carbonProjects?${searchParams.toString()}`,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
-        },
-      },
-    );
-
-    const projects = projectsRes.data?.items || [];
-
-    const marketplaceProjects = projects.map((project) => {
-      const map = projectMap[project.key];
-
+    const marketplaceProjects = Object.values(projectMap).map((entry) => {
       return {
-        ...project,
-        minPrice: map?.minPrice ?? null,
-        listings: map?.listings ?? [],
-        hasSupply: Boolean(map),
+        ...entry.project,
+        key: entry.project.id, // importante para tu frontend
+        minPrice: entry.minPrice,
+        listings: entry.listings,
+        hasSupply: true,
       };
     });
 
