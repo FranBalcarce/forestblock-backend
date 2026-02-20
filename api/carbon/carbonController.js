@@ -92,12 +92,13 @@ export const getMarketplaceProjects = async (req, res) => {
     ========================= */
 
     const marketplaceProjects = projects
-      .filter((project) => projectMap[project.key]) // 🔥 clave
+      .filter((project) => projectMap[project.id]) // 🔥 usar project.id
       .map((project) => {
-        const supplyData = projectMap[project.key];
+        const supplyData = projectMap[project.id];
 
         return {
           ...project,
+          key: project.id, // importante para tu frontend
           minPrice: supplyData.minPrice,
           listings: supplyData.listings,
           hasSupply: true,
