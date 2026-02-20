@@ -27,7 +27,22 @@ connectDB();
 
 app.use(
   cors({
-    origin: ["http://localhost:3000", "https://forestblock.app"],
+    origin: function (origin, callback) {
+      const allowedOrigins = [
+        "http://localhost:3000",
+        "https://forestblock.app",
+        "https://www.forestblock.app",
+        "https://forestblock-app-frontend-production.up.railway.app",
+      ];
+
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(null, true); // 🔥 temporalmente permitir todo para evitar bloqueo
+      }
+    },
     credentials: true,
   }),
 );
