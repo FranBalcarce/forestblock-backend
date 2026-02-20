@@ -4,6 +4,10 @@ import axios from "axios";
 const CARBONMARK_BASE =
   process.env.CARBONMARK_BASE_URL || "https://v18.api.carbonmark.com";
 
+/* ==============================
+   MARKETPLACE PROJECTS
+============================== */
+
 export const getMarketplaceProjects = async (req, res) => {
   console.log("🔥 MARKETPLACE CONTROLLER (SAFE ENRICHED)");
 
@@ -35,7 +39,7 @@ export const getMarketplaceProjects = async (req, res) => {
 
       if (!projectMap[projectId]) {
         projectMap[projectId] = {
-          baseProject: project, // lo que ya funciona
+          baseProject: project,
           minPrice: Number(listing.singleUnitPrice),
           listings: [],
         };
@@ -59,7 +63,10 @@ export const getMarketplaceProjects = async (req, res) => {
 
     const projectIds = Object.keys(projectMap);
 
-    // 🔥 ENRIQUECER INFO COMPLETA SIN ROMPER NADA
+    /* ==============================
+       ENRICH PROJECT INFO
+    ============================== */
+
     const searchParams = new URLSearchParams();
     projectIds.forEach((id) => searchParams.append("keys", id));
 
@@ -84,7 +91,7 @@ export const getMarketplaceProjects = async (req, res) => {
       const fullInfo = fullProjectMap[projectId];
 
       return {
-        ...(fullInfo || entry.baseProject), // 🔥 si existe full info la usamos
+        ...(fullInfo || entry.baseProject),
         key: projectId,
         minPrice: entry.minPrice,
         listings: entry.listings,
@@ -99,6 +106,27 @@ export const getMarketplaceProjects = async (req, res) => {
   } catch (err) {
     console.error("Marketplace error:", err.response?.data || err.message);
     return res.status(500).json({ error: "Marketplace fetch failed" });
+  }
+};
+
+/* ==============================
+   GET SINGLE LISTING (CHECKOUT)
+============================== */
+
+export const getListingById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const listingRes = await axios.get(`${CARBONMARK_BASE}/listings/${id}`, {
+      headers: {
+        Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
+      },
+    });
+
+    return res.json(listingRes.data);
+  } catch (err) {
+    console.error("Listing fetch error:", err.message);
+    return res.status(500).json({ error: "Listing fetch failed" });
   }
 };
 // // api/carbon/carbonController.js
