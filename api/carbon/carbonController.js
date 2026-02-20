@@ -5,72 +5,60 @@ const CARBONMARK_BASE =
   process.env.CARBONMARK_BASE_URL || "https://v18.api.carbonmark.com";
 
 export const getMarketplaceProjects = async (req, res) => {
-  console.log("🔥 MARKETPLACE CONTROLLER (v18 listings)");
-
   try {
+    // 1️⃣ Traer listings (supply real)
     const listingsRes = await axios.get(`${CARBONMARK_BASE}/listings`, {
       headers: {
         Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
       },
-      params: {
-        limit: 200,
-      },
+      params: { limit: 200 },
     });
 
     const listings = Array.isArray(listingsRes.data)
       ? listingsRes.data
       : listingsRes.data?.items || [];
 
-    if (!listings.length) {
-      return res.json({ count: 0, items: [] });
-    }
-
-    // ✅ Filtrar supply real
     const availableListings = listings.filter((l) => Number(l.leftToSell) > 0);
 
     if (!availableListings.length) {
       return res.json({ count: 0, items: [] });
     }
 
-    // Agrupar por projectId
-    const projectMap = {};
+    // 2️⃣ Agrupar projectIds
+    const projectIds = [
+      ...new Set(availableListings.map((l) => l.project?.id).filter(Boolean)),
+    ];
 
-    for (const listing of availableListings) {
-      const project = listing.project;
-      if (!project?.id) continue;
+    // 3️⃣ Traer proyectos completos (imagen + descripción + geo)
+    const searchParams = new URLSearchParams();
+    projectIds.forEach((id) => searchParams.append("keys", id));
 
-      const projectId = project.id;
+    const projectsRes = await axios.get(
+      `${CARBONMARK_BASE}/carbonProjects?${searchParams.toString()}`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
+        },
+      },
+    );
 
-      if (!projectMap[projectId]) {
-        projectMap[projectId] = {
-          project,
-          minPrice: Number(listing.singleUnitPrice),
-          listings: [],
-        };
-      }
+    const projects = projectsRes.data?.items || [];
 
-      projectMap[projectId].listings.push({
-        ...listing,
-        leftToSell: Number(listing.leftToSell),
-        singleUnitPrice: Number(listing.singleUnitPrice),
-      });
+    // 4️⃣ Construir respuesta final
+    const marketplaceProjects = projects.map((project) => {
+      const relatedListings = availableListings.filter(
+        (l) => l.project?.id === project.key,
+      );
 
-      const currentPrice = Number(listing.singleUnitPrice);
+      const minPrice = Math.min(
+        ...relatedListings.map((l) => Number(l.singleUnitPrice)),
+      );
 
-      if (!isNaN(currentPrice)) {
-        projectMap[projectId].minPrice = Math.min(
-          projectMap[projectId].minPrice,
-          currentPrice,
-        );
-      }
-    }
-
-    const marketplaceProjects = Object.values(projectMap).map((entry) => {
       return {
-        ...entry.project,
-        key: entry.project.id, // importante para tu frontend
-        minPrice: entry.minPrice,
-        listings: entry.listings,
+        ...project,
+        key: project.key,
+        minPrice,
+        listings: relatedListings,
         hasSupply: true,
       };
     });
