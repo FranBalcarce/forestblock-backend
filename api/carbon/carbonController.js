@@ -1,19 +1,14 @@
-// api/carbon/carbonController.js
 import axios from "axios";
 
 const CARBONMARK_BASE =
   process.env.CARBONMARK_BASE_URL || "https://v18.api.carbonmark.com";
 
-/* =========================================================
-   MARKETPLACE - SUPPLY + INFO COMPLETA
-========================================================= */
-
 export const getMarketplaceProjects = async (req, res) => {
   try {
-    console.log("🔥 MARKETPLACE CONTROLLER FINAL VERSION");
+    console.log("🔥 MARKETPLACE STABLE VERSION");
 
     /* =========================
-       1️⃣ TRAER LISTINGS (supply real)
+       1️⃣ LISTINGS (SUPPLY REAL)
     ========================= */
 
     const listingsRes = await axios.get(`${CARBONMARK_BASE}/listings`, {
@@ -36,22 +31,23 @@ export const getMarketplaceProjects = async (req, res) => {
     }
 
     /* =========================
-       2️⃣ AGRUPAR POR PROJECT
+       2️⃣ AGRUPAR POR PROJECT KEY
     ========================= */
+
     const projectMap = {};
 
     for (const listing of availableListings) {
-      const projectKey = listing.project?.key;
-      if (!projectKey) continue;
+      const key = listing.project?.key;
+      if (!key) continue;
 
-      if (!projectMap[projectKey]) {
-        projectMap[projectKey] = {
+      if (!projectMap[key]) {
+        projectMap[key] = {
           minPrice: Number(listing.singleUnitPrice),
           listings: [],
         };
       }
 
-      projectMap[projectKey].listings.push({
+      projectMap[key].listings.push({
         ...listing,
         singleUnitPrice: Number(listing.singleUnitPrice),
         leftToSell: Number(listing.leftToSell),
@@ -59,21 +55,22 @@ export const getMarketplaceProjects = async (req, res) => {
 
       const price = Number(listing.singleUnitPrice);
       if (!isNaN(price)) {
-        projectMap[projectKey].minPrice = Math.min(
-          projectMap[projectKey].minPrice,
-          price,
-        );
+        projectMap[key].minPrice = Math.min(projectMap[key].minPrice, price);
       }
     }
 
-    const projectIds = Object.keys(projectMap);
+    const keys = Object.keys(projectMap);
+
+    if (!keys.length) {
+      return res.json({ count: 0, items: [] });
+    }
 
     /* =========================
-       3️⃣ TRAER INFO COMPLETA (imagenes, descripcion, geo)
+       3️⃣ INFO COMPLETA
     ========================= */
 
     const searchParams = new URLSearchParams();
-    projectIds.forEach((id) => searchParams.append("keys", id));
+    keys.forEach((k) => searchParams.append("keys", k));
 
     const projectsRes = await axios.get(
       `${CARBONMARK_BASE}/carbonProjects?${searchParams.toString()}`,
@@ -87,13 +84,14 @@ export const getMarketplaceProjects = async (req, res) => {
     const projects = projectsRes.data?.items || [];
 
     /* =========================
-       4️⃣ MERGE FINAL
+       4️⃣ MERGE SEGURO
     ========================= */
 
     const marketplaceProjects = projects
-      .filter((project) => projectMap[project.key])
       .map((project) => {
         const supplyData = projectMap[project.key];
+
+        if (!supplyData) return null;
 
         return {
           ...project,
@@ -102,21 +100,18 @@ export const getMarketplaceProjects = async (req, res) => {
           listings: supplyData.listings,
           hasSupply: true,
         };
-      });
+      })
+      .filter(Boolean);
 
     return res.json({
       count: marketplaceProjects.length,
       items: marketplaceProjects,
     });
   } catch (err) {
-    console.error("Marketplace error:", err.response?.data || err.message);
+    console.error("Marketplace error:", err.message);
     return res.status(500).json({ error: "Marketplace fetch failed" });
   }
 };
-
-/* =========================================================
-   TRAER LISTING INDIVIDUAL (para checkout)
-========================================================= */
 
 export const getListingById = async (req, res) => {
   try {
@@ -130,11 +125,10 @@ export const getListingById = async (req, res) => {
 
     return res.json(listingRes.data);
   } catch (err) {
-    console.error("Listing fetch error:", err.response?.data || err.message);
+    console.error("Listing fetch error:", err.message);
     return res.status(500).json({ error: "Listing fetch failed" });
   }
 };
-
 // // api/carbon/carbonController.js
 // import axios from "axios";
 
