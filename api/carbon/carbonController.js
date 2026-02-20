@@ -4,8 +4,9 @@ const CARBONMARK_BASE =
   process.env.CARBONMARK_BASE_URL || "https://v18.api.carbonmark.com";
 
 export const getMarketplaceProjects = async (req, res) => {
+  console.log("🔥 MARKETPLACE CONTROLLER EXECUTING");
+
   try {
-    // 1️⃣ Traer precios reales
     const pricesRes = await axios.get(`${CARBONMARK_BASE}/prices`, {
       headers: {
         Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
@@ -23,7 +24,7 @@ export const getMarketplaceProjects = async (req, res) => {
       return res.json({ count: 0, items: [] });
     }
 
-    // 2️⃣ Filtrar solo precios con supply real
+    // 🔥 FILTRAR SUPPLY REAL
     const availablePrices = prices.filter(
       (p) => Number(p.supply) > 0 || Number(p.liquidSupply) > 0,
     );
@@ -32,7 +33,6 @@ export const getMarketplaceProjects = async (req, res) => {
       return res.json({ count: 0, items: [] });
     }
 
-    // 3️⃣ Agrupar por projectId
     const projectMap = {};
 
     for (const price of availablePrices) {
@@ -68,7 +68,6 @@ export const getMarketplaceProjects = async (req, res) => {
       return res.json({ count: 0, items: [] });
     }
 
-    // 4️⃣ Traer proyectos reales
     const searchParams = new URLSearchParams();
     projectKeys.forEach((key) => searchParams.append("keys", key));
 
@@ -83,7 +82,6 @@ export const getMarketplaceProjects = async (req, res) => {
 
     const projects = projectsRes.data?.items || [];
 
-    // 5️⃣ Construir respuesta final
     const marketplaceProjects = projects.map((project) => {
       const map = projectMap[project.key];
 
