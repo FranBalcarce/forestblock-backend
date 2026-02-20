@@ -3,37 +3,74 @@ import axios from "axios";
 const CARBONMARK_BASE =
   process.env.CARBONMARK_BASE_URL || "https://v18.api.carbonmark.com";
 
-/* ============================================================
-   1️⃣ MARKETPLACE - trae proyectos con listings activos
-============================================================ */
 export const getMarketplaceProjects = async (req, res) => {
   try {
-    // Traer listings (supply real)
-    const listingsRes = await axios.get(`${CARBONMARK_BASE}/listings`, {
+    // 1️⃣ Traer precios reales
+    const pricesRes = await axios.get(`${CARBONMARK_BASE}/prices`, {
       headers: {
         Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
       },
-      params: { limit: 200 },
+      params: {
+        limit: 200,
+      },
     });
 
-    const listings = Array.isArray(listingsRes.data)
-      ? listingsRes.data
-      : listingsRes.data?.items || [];
+    const prices = Array.isArray(pricesRes.data)
+      ? pricesRes.data
+      : pricesRes.data?.items || [];
 
-    const availableListings = listings.filter((l) => Number(l.leftToSell) > 0);
-
-    if (!availableListings.length) {
+    if (!prices.length) {
       return res.json({ count: 0, items: [] });
     }
 
-    // Agrupar projectIds únicos
-    const projectIds = [
-      ...new Set(availableListings.map((l) => l.project?.id).filter(Boolean)),
-    ];
+    // 2️⃣ Filtrar solo precios con supply real
+    const availablePrices = prices.filter(
+      (p) => Number(p.supply) > 0 || Number(p.liquidSupply) > 0,
+    );
 
-    // Traer proyectos completos (imagen, descripción, geo)
+    if (!availablePrices.length) {
+      return res.json({ count: 0, items: [] });
+    }
+
+    // 3️⃣ Agrupar por projectId
+    const projectMap = {};
+
+    for (const price of availablePrices) {
+      const projectId =
+        price.projectId ||
+        price?.token?.projectId ||
+        price?.creditId?.projectId;
+
+      if (!projectId) continue;
+
+      if (!projectMap[projectId]) {
+        projectMap[projectId] = {
+          minPrice: null,
+          listings: [],
+        };
+      }
+
+      projectMap[projectId].listings.push(price);
+
+      const currentPrice = price.purchasePrice ?? price.baseUnitPrice;
+
+      if (currentPrice) {
+        projectMap[projectId].minPrice =
+          projectMap[projectId].minPrice === null
+            ? currentPrice
+            : Math.min(projectMap[projectId].minPrice, currentPrice);
+      }
+    }
+
+    const projectKeys = Object.keys(projectMap);
+
+    if (!projectKeys.length) {
+      return res.json({ count: 0, items: [] });
+    }
+
+    // 4️⃣ Traer proyectos reales
     const searchParams = new URLSearchParams();
-    projectIds.forEach((id) => searchParams.append("keys", id));
+    projectKeys.forEach((key) => searchParams.append("keys", key));
 
     const projectsRes = await axios.get(
       `${CARBONMARK_BASE}/carbonProjects?${searchParams.toString()}`,
@@ -46,22 +83,15 @@ export const getMarketplaceProjects = async (req, res) => {
 
     const projects = projectsRes.data?.items || [];
 
-    // Construir respuesta final
+    // 5️⃣ Construir respuesta final
     const marketplaceProjects = projects.map((project) => {
-      const relatedListings = availableListings.filter(
-        (l) => l.project?.id === project.key,
-      );
-
-      const minPrice = Math.min(
-        ...relatedListings.map((l) => Number(l.singleUnitPrice)),
-      );
+      const map = projectMap[project.key];
 
       return {
         ...project,
-        key: project.key,
-        minPrice,
-        listings: relatedListings,
-        hasSupply: true,
+        minPrice: map?.minPrice ?? null,
+        listings: map?.listings ?? [],
+        hasSupply: Boolean(map),
       };
     });
 
@@ -72,40 +102,5 @@ export const getMarketplaceProjects = async (req, res) => {
   } catch (err) {
     console.error("Marketplace error:", err.response?.data || err.message);
     return res.status(500).json({ error: "Marketplace fetch failed" });
-  }
-};
-
-/* ============================================================
-   2️⃣ LISTING BY ID - para retireCheckout
-============================================================ */
-export const getListingById = async (req, res) => {
-  const { listingId } = req.query;
-
-  if (!listingId) {
-    return res.status(400).json({ error: "listingId is required" });
-  }
-
-  try {
-    const response = await axios.get(`${CARBONMARK_BASE}/listings`, {
-      headers: {
-        Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
-      },
-      params: { limit: 200 },
-    });
-
-    const listings = Array.isArray(response.data)
-      ? response.data
-      : response.data?.items || [];
-
-    const found = listings.find((l) => l.id === listingId);
-
-    if (!found) {
-      return res.status(404).json({ error: "Listing not found" });
-    }
-
-    return res.json(found);
-  } catch (err) {
-    console.error("Listing fetch error:", err.response?.data || err.message);
-    return res.status(500).json({ error: "Failed to fetch listing" });
   }
 };
