@@ -8,70 +8,34 @@ const authHeaders = () => ({
   Authorization: `Bearer ${process.env.CARBONMARK_API_KEY}`,
 });
 
-const axiosCM = axios.create({
-  baseURL: CARBONMARK_BASE,
-  timeout: 20000,
-});
-
-const safeNumber = (v) => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-};
-
-const chunk = (arr, size) => {
-  const out = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
-};
-
 /**
- * Trae proyectos completos (carbonProjects) por keys.
- * OJO: el "key" que usa carbonProjects a veces viene como `key`,
- * y en tu marketplace vos usás `listing.project.id` como identificador.
- * Por eso hacemos un map flexible por key/id/projectID.
+ * Intenta traer info completa del proyecto desde /carbonProjects
+ * Si falla, devuelve null (para NO romper marketplace)
  */
-const fetchFullProjectsByKeys = async (keys) => {
-  if (!keys?.length) return new Map();
+const fetchFullProjectsByKeys = async (keys = []) => {
+  if (!keys.length) return [];
 
-  const map = new Map();
+  const searchParams = new URLSearchParams();
+  keys.forEach((k) => searchParams.append("keys", k));
 
-  // Para no romper por URL demasiado larga
-  const batches = chunk(keys, 50);
+  const url = `${CARBONMARK_BASE}/carbonProjects?${searchParams.toString()}`;
 
-  for (const batch of batches) {
-    const searchParams = new URLSearchParams();
-    batch.forEach((k) => searchParams.append("keys", k));
+  const res = await axios.get(url, { headers: authHeaders() });
 
-    const res = await axiosCM.get(
-      `/carbonProjects?${searchParams.toString()}`,
-      {
-        headers: authHeaders(),
-      },
-    );
+  const items = Array.isArray(res.data) ? res.data : res.data?.items || [];
 
-    const items = res.data?.items || [];
-    for (const p of items) {
-      const k = p?.key ?? p?.id ?? p?.projectID ?? p?.projectId;
-      if (k) map.set(String(k), p);
-    }
-  }
-
-  return map;
+  return items;
 };
 
 /* ==============================
-   MARKETPLACE PROJECTS
-   - Mantiene la lógica que TE FUNCIONA (listings con leftToSell>0)
-   - Enriquecer con carbonProjects SIN romper
+   MARKETPLACE PROJECTS (LIST)
 ============================== */
+
 export const getMarketplaceProjects = async (req, res) => {
-  console.log("🔥 MARKETPLACE CONTROLLER (LISTINGS -> ENRICH)");
+  console.log("🔥 MARKETPLACE CONTROLLER (SAFE ENRICHED) - LIST");
 
   try {
-    console.log("BASE URL:", CARBONMARK_BASE);
-    console.log("API KEY PRESENT:", Boolean(process.env.CARBONMARK_API_KEY));
-
-    const listingsRes = await axiosCM.get(`/listings`, {
+    const listingsRes = await axios.get(`${CARBONMARK_BASE}/listings`, {
       headers: authHeaders(),
       params: { limit: 200 },
     });
@@ -82,12 +46,10 @@ export const getMarketplaceProjects = async (req, res) => {
 
     console.log("📦 TOTAL LISTINGS:", listings.length);
 
-    // ✅ Sólo los que realmente tienen supply
-    const availableListings = listings.filter(
-      (l) => safeNumber(l.leftToSell) > 0,
-    );
+    // ✅ Filtrar supply real
+    const availableListings = listings.filter((l) => Number(l.leftToSell) > 0);
     console.log(
-      "🟢 AVAILABLE LISTINGS (leftToSell>0):",
+      "🟢 AVAILABLE LISTINGS (leftToSell > 0):",
       availableListings.length,
     );
 
@@ -95,18 +57,18 @@ export const getMarketplaceProjects = async (req, res) => {
       return res.json({ count: 0, items: [] });
     }
 
-    // Agrupar por projectId (el que venía funcionando)
-    const projectMap = {}; // { [projectId]: { baseProject, minPrice, listings[] } }
+    // Agrupar por projectId
+    const projectMap = {};
 
     for (const listing of availableListings) {
       const project = listing.project;
       if (!project?.id) continue;
 
-      const projectId = String(project.id);
+      const projectId = project.id;
 
       if (!projectMap[projectId]) {
         projectMap[projectId] = {
-          baseProject: project, // lo que YA te funcionaba
+          baseProject: project, // lo que ya venía funcionando (desde listings)
           minPrice: Number(listing.singleUnitPrice),
           listings: [],
         };
@@ -114,40 +76,48 @@ export const getMarketplaceProjects = async (req, res) => {
 
       projectMap[projectId].listings.push({
         ...listing,
-        leftToSell: safeNumber(listing.leftToSell),
-        singleUnitPrice: safeNumber(listing.singleUnitPrice),
+        leftToSell: Number(listing.leftToSell),
+        singleUnitPrice: Number(listing.singleUnitPrice),
       });
 
-      const currentPrice = safeNumber(listing.singleUnitPrice);
-      if (currentPrice > 0) {
+      const currentPrice = Number(listing.singleUnitPrice);
+      if (!Number.isNaN(currentPrice)) {
         projectMap[projectId].minPrice = Math.min(
-          safeNumber(projectMap[projectId].minPrice),
+          projectMap[projectId].minPrice,
           currentPrice,
         );
       }
     }
 
     const projectIds = Object.keys(projectMap);
-    console.log("🧩 PROJECT IDS (FROM LISTINGS):", projectIds.length);
+    console.log("🧩 PROJECTS WITH SUPPLY:", projectIds.length);
 
-    // 🔥 Enriquecer sin romper: si no matchea, cae al baseProject
-    const fullProjectMap = await fetchFullProjectsByKeys(projectIds);
-    console.log("📚 FULL PROJECTS FOUND:", fullProjectMap.size);
+    // 🔥 Enriquecer SIN ROMPER (si falla, seguimos con baseProject)
+    let fullProjectMap = {};
+    try {
+      const fullProjects = await fetchFullProjectsByKeys(projectIds);
+      console.log("🧠 FULL PROJECTS FOUND:", fullProjects.length);
+
+      fullProjectMap = fullProjects.reduce((acc, p) => {
+        if (p?.id) acc[p.id] = p;
+        return acc;
+      }, {});
+    } catch (e) {
+      console.log("⚠️ ENRICH FAILED, FALLBACK TO BASE PROJECTS:", e?.message);
+      fullProjectMap = {};
+    }
 
     const marketplaceProjects = projectIds.map((projectId) => {
       const entry = projectMap[projectId];
-      const fullInfo = fullProjectMap.get(projectId);
+      const fullInfo = fullProjectMap[projectId];
 
-      const merged = {
-        ...(entry.baseProject || {}),
-        ...(fullInfo || {}), // pisa solo si existe fullInfo
-        key: projectId, // tu frontend usa `key`
-        minPrice: safeNumber(entry.minPrice),
+      return {
+        ...(fullInfo || entry.baseProject),
+        key: projectId, // importante para el frontend
+        minPrice: entry.minPrice,
         listings: entry.listings,
         hasSupply: true,
       };
-
-      return merged;
     });
 
     console.log("✅ FINAL PROJECT COUNT:", marketplaceProjects.length);
@@ -157,78 +127,24 @@ export const getMarketplaceProjects = async (req, res) => {
       items: marketplaceProjects,
     });
   } catch (err) {
-    console.error("❌ Marketplace error:", err.response?.data || err.message);
+    console.error("Marketplace error:", err.response?.data || err.message);
     return res.status(500).json({ error: "Marketplace fetch failed" });
   }
 };
 
 /* ==============================
-   LISTINGS FOR CHECKOUT
-   ✅ Soporta:
-   - /api/carbon/listings?listingId=0x...
-   - /api/carbon/listing/:id
+   MARKETPLACE PROJECT (DETAIL)
+   /api/carbon/marketplace/:key
 ============================== */
 
-export const getListingByQuery = async (req, res) => {
-  try {
-    const listingId = req.query?.listingId;
-    console.log("🧾 GET LISTING BY QUERY:", listingId);
+export const getMarketplaceProjectByKey = async (req, res) => {
+  const { key } = req.params;
 
-    if (!listingId) {
-      return res.status(400).json({ error: "Missing listingId query param" });
-    }
-
-    const listingRes = await axiosCM.get(`/listings/${listingId}`, {
-      headers: authHeaders(),
-    });
-
-    return res.json(listingRes.data);
-  } catch (err) {
-    const status = err.response?.status || 500;
-    console.error(
-      "❌ Listing fetch (query) error:",
-      err.response?.data || err.message,
-    );
-    return res.status(status).json({ error: "Listing fetch failed" });
-  }
-};
-
-export const getListingById = async (req, res) => {
-  try {
-    const { id } = req.params;
-    console.log("🧾 GET LISTING BY PARAM:", id);
-
-    const listingRes = await axiosCM.get(`/listings/${id}`, {
-      headers: authHeaders(),
-    });
-
-    return res.json(listingRes.data);
-  } catch (err) {
-    const status = err.response?.status || 500;
-    console.error(
-      "❌ Listing fetch (param) error:",
-      err.response?.data || err.message,
-    );
-    return res.status(status).json({ error: "Listing fetch failed" });
-  }
-};
-
-/* ==============================
-   SINGLE PROJECT DETAIL (FULL + BUYABLE)
-   - trae carbonProjects (info completa)
-   - le agrega listings disponibles de ese projectId (para comprar)
-============================== */
-export const getProjectById = async (req, res) => {
-  const { id } = req.params;
-  console.log("🧩 GET PROJECT BY ID:", id);
+  console.log("🔎 MARKETPLACE PROJECT DETAIL:", key);
 
   try {
-    // 1) Proyecto full (si existe)
-    const fullMap = await fetchFullProjectsByKeys([String(id)]);
-    const fullProject = fullMap.get(String(id)) || null;
-
-    // 2) Listings del marketplace para este proyecto (buyable)
-    const listingsRes = await axiosCM.get(`/listings`, {
+    // 1) Traemos listings (para asegurar que sea comprable/supply y precio)
+    const listingsRes = await axios.get(`${CARBONMARK_BASE}/listings`, {
       headers: authHeaders(),
       params: { limit: 200 },
     });
@@ -237,39 +153,78 @@ export const getProjectById = async (req, res) => {
       ? listingsRes.data
       : listingsRes.data?.items || [];
 
-    const availableListings = listings
-      .filter((l) => String(l?.project?.id) === String(id))
-      .filter((l) => safeNumber(l.leftToSell) > 0)
-      .map((l) => ({
+    // Filtrar: supply > 0 y project.id == key
+    const matched = listings.filter(
+      (l) => Number(l.leftToSell) > 0 && l?.project?.id === key,
+    );
+
+    console.log("🟢 MATCHED LISTINGS:", matched.length);
+
+    if (!matched.length) {
+      return res.status(404).json({ error: "Project not found or no supply" });
+    }
+
+    // Base project desde listing (fallback)
+    const baseProject = matched[0].project;
+
+    // 2) Calculamos minPrice y armamos listings parseadas
+    let minPrice = null;
+
+    const parsedListings = matched.map((l) => {
+      const price = Number(l.singleUnitPrice);
+      if (Number.isFinite(price)) {
+        minPrice = minPrice === null ? price : Math.min(minPrice, price);
+      }
+
+      return {
         ...l,
-        leftToSell: safeNumber(l.leftToSell),
-        singleUnitPrice: safeNumber(l.singleUnitPrice),
-      }));
+        leftToSell: Number(l.leftToSell),
+        singleUnitPrice: Number(l.singleUnitPrice),
+      };
+    });
 
-    const minPrice =
-      availableListings.length > 0
-        ? Math.min(
-            ...availableListings.map((l) => safeNumber(l.singleUnitPrice)),
-          )
-        : null;
+    // 3) Enriquecemos info completa del proyecto (mapa, descripción, imágenes, etc)
+    let fullInfo = null;
+    try {
+      const fullProjects = await fetchFullProjectsByKeys([key]);
+      fullInfo = fullProjects?.[0] || null;
+      console.log("🧠 FULL INFO:", fullInfo ? "YES" : "NO");
+    } catch (e) {
+      console.log("⚠️ DETAIL ENRICH FAILED, FALLBACK:", e?.message);
+      fullInfo = null;
+    }
 
-    // 3) Base project (por si full no matchea)
-    const baseProjectFromListing = availableListings[0]?.project || { id };
-
-    const merged = {
-      ...(baseProjectFromListing || {}),
-      ...(fullProject || {}),
-      key: String(id),
-      listings: availableListings,
-      minPrice: minPrice !== null ? safeNumber(minPrice) : undefined,
-      hasSupply: availableListings.length > 0,
-    };
-
-    return res.json(merged);
+    return res.json({
+      ...(fullInfo || baseProject),
+      key,
+      minPrice: minPrice ?? 0,
+      listings: parsedListings,
+      hasSupply: true,
+    });
   } catch (err) {
-    const status = err.response?.status || 500;
-    console.error("❌ Project fetch error:", err.response?.data || err.message);
-    return res.status(status).json({ error: "Project fetch failed" });
+    console.error("Project detail error:", err.response?.data || err.message);
+    return res.status(500).json({ error: "Project detail fetch failed" });
+  }
+};
+
+/* ==============================
+   GET SINGLE LISTING (CHECKOUT)
+   /api/carbon/listing/:id   (alias /listings/:id)
+============================== */
+
+export const getListingById = async (req, res) => {
+  const { id } = req.params;
+  console.log("🧾 GET LISTING BY ID:", id);
+
+  try {
+    const listingRes = await axios.get(`${CARBONMARK_BASE}/listings/${id}`, {
+      headers: authHeaders(),
+    });
+
+    return res.json(listingRes.data);
+  } catch (err) {
+    console.error("Listing fetch error:", err.response?.data || err.message);
+    return res.status(500).json({ error: "Listing fetch failed" });
   }
 };
 

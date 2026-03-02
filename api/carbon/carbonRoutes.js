@@ -1,9 +1,8 @@
 import express from "express";
 import {
   getMarketplaceProjects,
-  getListingByQuery,
+  getMarketplaceProjectByKey,
   getListingById,
-  getProjectById,
 } from "./carbonController.js";
 
 const router = express.Router();
@@ -11,17 +10,14 @@ const router = express.Router();
 /* Marketplace principal */
 router.get("/marketplace", getMarketplaceProjects);
 
-/**
- * ✅ Este es el que te está faltando y te genera el 404:
- * Front pega a: /api/carbon/listings?listingId=...
- */
-router.get("/listings", getListingByQuery);
+/* Detalle de proyecto (para /marketplace/:id del frontend) */
+router.get("/marketplace/:key", getMarketplaceProjectByKey);
 
-/* Listing individual alternativo (por param) */
+/* Listing individual (checkout) */
 router.get("/listing/:id", getListingById);
 
-/* Proyecto individual (full + buyable listings) */
-router.get("/project/:id", getProjectById);
+/* ✅ Alias por si el frontend pega a /listings/:id */
+router.get("/listings/:id", getListingById);
 
 export default router;
 
