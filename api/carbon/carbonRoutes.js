@@ -1,37 +1,39 @@
 import express from "express";
-import { getMarketplaceProjects, getListingById } from "./carbonController.js";
+import {
+  getMarketplaceProjects,
+  getListingByQuery,
+  getListingById,
+  getProjectById,
+} from "./carbonController.js";
 
 const router = express.Router();
 
 /* Marketplace principal */
 router.get("/marketplace", getMarketplaceProjects);
 
-/* Listing individual (checkout) */
+/**
+ * ✅ Este es el que te está faltando y te genera el 404:
+ * Front pega a: /api/carbon/listings?listingId=...
+ */
+router.get("/listings", getListingByQuery);
+
+/* Listing individual alternativo (por param) */
 router.get("/listing/:id", getListingById);
+
+/* Proyecto individual (full + buyable listings) */
+router.get("/project/:id", getProjectById);
 
 export default router;
 
-// const express = require("express");
-// const {
-//   generateQuote,
-//   createOrder,
-//   getOrderDetails,
-//   sharePdf,
-//   getCarbonProjects,
-//   getCarbonProjectById,
-//   getPrices,
-//   pollOrderStatus,
-// } = require("./carbonController.js");
+// import express from "express";
+// import { getMarketplaceProjects, getListingById } from "./carbonController.js";
 
 // const router = express.Router();
 
-// router.get("/carbonProjects", getCarbonProjects);
-// router.get("/carbonProjects/:id", getCarbonProjectById);
-// router.get("/orders/:orderId", getOrderDetails);
-// router.get("/prices", getPrices);
-// router.get("/orders", pollOrderStatus);
-// router.post("/generate-quote", generateQuote);
-// router.post("/create-order", createOrder);
-// router.post("/sharePDF", sharePdf);
+// /* Marketplace principal */
+// router.get("/marketplace", getMarketplaceProjects);
 
-// module.exports = router;
+// /* Listing individual (checkout) */
+// router.get("/listing/:id", getListingById);
+
+// export default router;
