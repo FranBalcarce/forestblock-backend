@@ -3,6 +3,7 @@ import {
   getMarketplaceProjects,
   getMarketplaceProjectByKey,
   getListingById,
+  getListingByQuery,
 } from "./carbonController.js";
 
 const router = express.Router();
@@ -10,14 +11,19 @@ const router = express.Router();
 /* Marketplace principal */
 router.get("/marketplace", getMarketplaceProjects);
 
-/* Detalle de proyecto (para /marketplace/:id del frontend) */
+/* ✅ Detalle de proyecto - aliases para no romper el frontend */
 router.get("/marketplace/:key", getMarketplaceProjectByKey);
+router.get("/project/:key", getMarketplaceProjectByKey);
+router.get("/projects/:key", getMarketplaceProjectByKey);
 
-/* Listing individual (checkout) */
+/* ✅ Listing para checkout */
 router.get("/listing/:id", getListingById);
 
-/* ✅ Alias por si el frontend pega a /listings/:id */
+/* ✅ Alias por si el frontend usa plural con params */
 router.get("/listings/:id", getListingById);
+
+/* ✅ CLAVE: si el frontend usa query param ?listingId=... */
+router.get("/listings", getListingByQuery);
 
 export default router;
 
